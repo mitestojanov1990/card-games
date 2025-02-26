@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Collections;
+using System.Linq;
 
 public class GameManager : MonoBehaviour
 {
@@ -67,6 +68,11 @@ public class GameManager : MonoBehaviour
     public int CurrentDrawAmount => currentDrawAmount;
     public string DeclaredSuit => declaredSuit;
 
+    // Add new fields
+    private bool isSimulation = false;
+    private float simulationDelay = 0.5f;
+    private bool detailedLogging = false;
+
     private void Awake()
     {
         if (Instance == null)
@@ -93,17 +99,36 @@ public class GameManager : MonoBehaviour
         suitSelector.gameObject.SetActive(false);
     }
 
+    public void InitializeSimulation(int playerCount, float delay, bool logging)
+    {
+        isSimulation = true;
+        simulationDelay = delay;
+        detailedLogging = logging;
+        PlayerCount = playerCount;
+        StartNewGame();
+    }
+
     public void StartNewGame()
     {
-        Debug.Log("Starting new game");
+        Debug.Log($"Starting new game (Simulation: {isSimulation})");
         deck = new Deck();
         
-        // Create players (2-10 players as per rules)
+        // Create players
         players.Clear();
-        players.Add(new Player("You", true));
-        for (int i = 1; i < PlayerCount; i++)
+        if (isSimulation)
         {
-            players.Add(new Player($"CPU {i}", false));
+            for (int i = 0; i < PlayerCount; i++)
+            {
+                players.Add(new Player($"CPU {i + 1}", false));
+            }
+        }
+        else
+        {
+            players.Add(new Player("You", true));
+            for (int i = 1; i < PlayerCount; i++)
+            {
+                players.Add(new Player($"CPU {i}", false));
+            }
         }
 
         // Deal 6 cards to each player
@@ -323,10 +348,17 @@ public class GameManager : MonoBehaviour
 
     private IEnumerator PlayCPUTurnAnimation()
     {
-        Debug.Log($"{CurrentPlayer.Name}'s turn");
-        
-        // Add delay for readability
-        yield return new WaitForSeconds(0.5f);
+        if (detailedLogging)
+        {
+            Debug.Log($"\n=== {CurrentPlayer.Name}'s turn ===");
+            Debug.Log($"Hand: {string.Join(", ", CurrentPlayer.Hand.Select(c => c.Rank + c.Suit))}");
+            Debug.Log($"Top card: {topDiscard.Rank}{topDiscard.Suit}");
+            if (declaredSuit != null) Debug.Log($"Declared suit: {declaredSuit}");
+            if (currentDrawAmount > 0) Debug.Log($"Draw amount: {currentDrawAmount}");
+            if (isSequentialPlayActive) Debug.Log("Sequential play active");
+        }
+
+        yield return new WaitForSeconds(simulationDelay);
         
         // Check for Macau
         CurrentPlayer.CheckMacau();
@@ -336,37 +368,53 @@ public class GameManager : MonoBehaviour
         
         if (cardToPlay != null)
         {
+            if (detailedLogging)
+            {
+                Debug.Log($"{CurrentPlayer.Name} played {cardToPlay.Rank}{cardToPlay.Suit}");
+            }
+
             CurrentPlayer.RemoveCard(cardToPlay);
             OnCardPlayed?.Invoke(cardToPlay, CurrentPlayer);
             
-            // Wait for animation
-            yield return new WaitForSeconds(0.6f);
+            yield return new WaitForSeconds(simulationDelay);
             
             PlayCard(cardToPlay, CurrentPlayer);
-            Debug.Log($"{CurrentPlayer.Name} played {cardToPlay.Rank}{cardToPlay.Suit}");
         }
         else
         {
-            // Draw a card if can't play
             Card drawnCard = DrawCard();
             if (drawnCard != null)
             {
+                if (detailedLogging)
+                {
+                    Debug.Log($"{CurrentPlayer.Name} drew {drawnCard.Rank}{drawnCard.Suit}");
+                }
+
                 OnCardDrawn?.Invoke(drawnCard, CurrentPlayer);
-                
-                // Wait for animation
-                yield return new WaitForSeconds(0.6f);
-                
+                yield return new WaitForSeconds(simulationDelay);
                 CurrentPlayer.AddCard(drawnCard);
-                Debug.Log($"{CurrentPlayer.Name} drew a card");
             }
         }
 
-        yield return new WaitForSeconds(0.5f);
+        if (detailedLogging)
+        {
+            Debug.Log($"Hand size: {CurrentPlayer.Hand.Count}");
+        }
+
+        yield return new WaitForSeconds(simulationDelay);
 
         CheckGameEnd();
         if (CurrentState != GameState.GameOver)
         {
             NextTurn();
+        }
+        else if (detailedLogging)
+        {
+            Debug.Log($"\n=== Game Over ===\nWinner: {CurrentPlayer.Name}");
+            foreach (var player in players)
+            {
+                Debug.Log($"{player.Name}'s final hand: {string.Join(", ", player.Hand.Select(c => c.Rank + c.Suit))}");
+            }
         }
     }
 
@@ -375,4 +423,5 @@ public class GameManager : MonoBehaviour
         Vector2 center = new Vector2(Screen.width/2, Screen.height/2);
         suitSelector.Show(center);
     }
+} 
 } 
