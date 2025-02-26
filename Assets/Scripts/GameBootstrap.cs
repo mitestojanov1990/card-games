@@ -8,6 +8,8 @@ public class GameBootstrap : MonoBehaviour
     public int simulationPlayers = 3;
     public float cpuPlayDelay = 0.5f;
     public bool detailedLogging = true;
+    public bool batchSimulation = false;
+    public int batchSize = 100;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     static void OnGameStart()
@@ -43,13 +45,24 @@ public class GameBootstrap : MonoBehaviour
 
     private void StartSimulation()
     {
-        Debug.Log("Starting CPU-only simulation mode");
+        Debug.Log($"Starting {(batchSimulation ? "batch " : "")}simulation mode");
         
         // Create GameManager if needed
         if (FindFirstObjectByType<GameManager>() == null)
         {
             GameObject gameManagerObj = new GameObject("GameManager");
             gameManagerObj.AddComponent<GameManager>().InitializeSimulation(simulationPlayers, cpuPlayDelay, detailedLogging);
+        }
+
+        // Add statistics tracker
+        GameObject statsObj = new GameObject("GameStatistics");
+        var statistics = statsObj.AddComponent<GameStatistics>();
+        statistics.Initialize();
+        
+        if (batchSimulation)
+        {
+            statistics.batchSize = batchSize;
+            statistics.StartBatchSimulation();
         }
 
         // Create minimal UI for monitoring
