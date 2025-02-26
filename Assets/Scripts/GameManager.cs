@@ -26,11 +26,16 @@ public class GameManager : MonoBehaviour
     private bool isSequentialPlayActive = false;
     private string declaredSuit = null;
     private bool hasCalledMacau = false;
+    private bool canCallStopMacau = false;
+    private const int STOP_MACAU_PENALTY = 3;
+    private const int INITIAL_HAND_SIZE = 6; // Rule: 6 cards are dealt
     
     public System.Action<string> OnSuitDeclared;
     public System.Action<int> OnDrawCardsEffect;
     public System.Action OnSkipTurn;
     public System.Action<bool> OnSequentialPlayChanged;
+    public System.Action<string> OnMacauCalled;
+    public System.Action<string> OnStopMacauCalled;
 
     private SuitSelector suitSelector;
 
@@ -90,21 +95,21 @@ public class GameManager : MonoBehaviour
 
     public void StartNewGame()
     {
-        Debug.Log("GameManager: Starting new game");
+        Debug.Log("Starting new game");
         deck = new Deck();
         
-        // Create players
+        // Create players (2-10 players as per rules)
         players.Clear();
-        players.Add(new Player("You", true)); // Human player
+        players.Add(new Player("You", true));
         for (int i = 1; i < PlayerCount; i++)
         {
             players.Add(new Player($"CPU {i}", false));
         }
 
-        // Deal initial cards
+        // Deal 6 cards to each player
         foreach (Player player in players)
         {
-            for (int i = 0; i < PlayerHandSize; i++)
+            for (int i = 0; i < INITIAL_HAND_SIZE; i++)
             {
                 Card card = DrawCard();
                 if (card != null)
@@ -118,12 +123,17 @@ public class GameManager : MonoBehaviour
         topDiscard = DrawCard();
         OnCardDiscarded?.Invoke(topDiscard);
 
+        // Initialize game state
         currentPlayerIndex = 0;
         CurrentState = GameState.PlayerTurn;
+        isSequentialPlayActive = false;
+        currentDrawAmount = 0;
+        declaredSuit = null;
+        hasCalledMacau = false;
+        canCallStopMacau = false;
+
         OnGameStateChanged?.Invoke(CurrentState);
         OnPlayerChanged?.Invoke(CurrentPlayer);
-        
-        Debug.Log("Game started, cards dealt");
     }
 
     public Card DrawCard()
@@ -151,36 +161,57 @@ public class GameManager : MonoBehaviour
         // Check if countering draw cards effect
         if (currentDrawAmount > 0)
         {
-            return CardRules.CanCounterDrawCards(card, topDiscard);
+            return CardRules.IsDrawCardCounter(card, topDiscard);
         }
 
-        // Check Pop Cup counter
-        if (CardRules.IsPopCupCounter(card, topDiscard))
-        {
-            return true;
-        }
-
-        return CardRules.CanPlayOnTop(card, topDiscard, isSequentialPlayActive);
+        return CardRules.CanPlayOnTop(card, topDiscard, isSequentialPlayActive, declaredSuit);
     }
 
-    public void PlayCard(Card card)
+    public void PlayCard(Card card, Player player)
     {
         // Handle special effects
         var effect = CardRules.GetCardEffect(card);
         switch (effect)
         {
-            case CardRules.SpecialEffect.DrawCards:
+            case CardRules.SpecialEffect.DrawTwo:
+            case CardRules.SpecialEffect.DrawThree:
                 currentDrawAmount += CardRules.GetDrawAmount(card);
                 OnDrawCardsEffect?.Invoke(currentDrawAmount);
                 break;
 
+            case CardRules.SpecialEffect.PopCup:
+                if (!CardRules.IsPopCupCounter(card, topDiscard))
+                {
+                    currentDrawAmount = 5;
+                    OnDrawCardsEffect?.Invoke(currentDrawAmount);
+                }
+                else
+                {
+                    // Queen counters King - reverse the effect
+                    Player previousPlayer = players[(currentPlayerIndex - 1 + players.Count) % players.Count];
+                    ForcePlayerDraw(previousPlayer, 5);
+                }
+                break;
+
             case CardRules.SpecialEffect.SkipTurn:
-                OnSkipTurn?.Invoke();
+                if (players.Count == 2)
+                {
+                    // In 2-player game, current player gets another turn
+                    currentPlayerIndex = (currentPlayerIndex - 1 + players.Count) % players.Count;
+                }
                 break;
 
             case CardRules.SpecialEffect.ChangeSuit:
-                Vector2 center = new Vector2(Screen.width/2, Screen.height/2);
-                suitSelector.Show(center);
+                if (player.IsHuman)
+                {
+                    ShowSuitSelector();
+                }
+                else
+                {
+                    // CPU chooses most common suit in hand
+                    declaredSuit = player.GetMostCommonSuit();
+                    OnSuitDeclared?.Invoke(declaredSuit);
+                }
                 break;
 
             case CardRules.SpecialEffect.Sequential:
@@ -189,32 +220,43 @@ public class GameManager : MonoBehaviour
                 break;
         }
 
+        // Handle Macau calls
+        if (player.Hand.Count == 2 && !hasCalledMacau)
+        {
+            canCallStopMacau = true;
+        }
+
         DiscardCard(card);
+        OnCardPlayed?.Invoke(card, player);
     }
 
-    public void CallMacau()
+    public void CallMacau(Player player)
     {
-        if (playerHand.Count == 1 && !hasCalledMacau)
+        if (player.Hand.Count == 1 && !hasCalledMacau)
         {
             hasCalledMacau = true;
-            Debug.Log("Player called Macau!");
+            OnMacauCalled?.Invoke(player.Name);
         }
     }
 
-    public void CallStopMacau()
+    public void CallStopMacau(Player caller, Player target)
     {
-        if (!hasCalledMacau && playerHand.Count == 1)
+        if (canCallStopMacau && target.Hand.Count == 1 && !hasCalledMacau)
         {
-            // Force player to draw 3 cards
-            for (int i = 0; i < 3; i++)
+            OnStopMacauCalled?.Invoke($"{caller.Name} caught {target.Name} not calling Macau!");
+            ForcePlayerDraw(target, STOP_MACAU_PENALTY);
+        }
+    }
+
+    private void ForcePlayerDraw(Player player, int amount)
+    {
+        for (int i = 0; i < amount; i++)
+        {
+            Card card = DrawCard();
+            if (card != null)
             {
-                Card card = DrawCard();
-                if (card != null)
-                {
-                    playerHand.Add(card);
-                }
+                player.AddCard(card);
             }
-            Debug.Log("Stop Macau! Player must draw 3 cards");
         }
     }
 
@@ -300,7 +342,7 @@ public class GameManager : MonoBehaviour
             // Wait for animation
             yield return new WaitForSeconds(0.6f);
             
-            PlayCard(cardToPlay);
+            PlayCard(cardToPlay, CurrentPlayer);
             Debug.Log($"{CurrentPlayer.Name} played {cardToPlay.Rank}{cardToPlay.Suit}");
         }
         else
@@ -326,5 +368,11 @@ public class GameManager : MonoBehaviour
         {
             NextTurn();
         }
+    }
+
+    private void ShowSuitSelector()
+    {
+        Vector2 center = new Vector2(Screen.width/2, Screen.height/2);
+        suitSelector.Show(center);
     }
 } 

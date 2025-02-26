@@ -23,7 +23,7 @@ MonoBehaviour:
   m_MinSize: {x: 300, y: 100}
   m_MaxSize: {x: 24288, y: 16192}
   vertical: 1
-  controlID: 14169
+  controlID: 14926
   draggingID: 0
 --- !u!114 &2
 MonoBehaviour:
@@ -152,7 +152,7 @@ MonoBehaviour:
   m_MinSize: {x: 300, y: 100}
   m_MaxSize: {x: 24288, y: 16192}
   vertical: 0
-  controlID: 14170
+  controlID: 14927
   draggingID: 0
 --- !u!114 &4
 MonoBehaviour:
@@ -178,7 +178,7 @@ MonoBehaviour:
   m_MinSize: {x: 200, y: 100}
   m_MaxSize: {x: 16192, y: 16192}
   vertical: 1
-  controlID: 14171
+  controlID: 14928
   draggingID: 0
 --- !u!114 &5
 MonoBehaviour:
@@ -204,7 +204,7 @@ MonoBehaviour:
   m_MinSize: {x: 200, y: 50}
   m_MaxSize: {x: 16192, y: 8096}
   vertical: 0
-  controlID: 14172
+  controlID: 14929
   draggingID: 0
 --- !u!114 &6
 MonoBehaviour:
@@ -225,8 +225,8 @@ MonoBehaviour:
     y: 0
     width: 273
     height: 426
-  m_MinSize: {x: 200, y: 200}
-  m_MaxSize: {x: 4000, y: 4000}
+  m_MinSize: {x: 201, y: 226}
+  m_MaxSize: {x: 4001, y: 4026}
   m_ActualView: {fileID: 7}
   m_Panes:
   - {fileID: 7}
@@ -271,7 +271,7 @@ MonoBehaviour:
   m_SceneHierarchy:
     m_TreeViewState:
       scrollPos: {x: 0, y: 0}
-      m_SelectedIDs: 3c59feff
+      m_SelectedIDs: d0fefdff
       m_LastClickedID: 0
       m_ExpandedIDs: ce5efefff273feff0874feff2a7bfeffde14ffff6c28ffff9a36ffffba65ffff42fbfffff4ffffffa8200100cc200100d82001004640010084890100
       m_RenameOverlay:
@@ -317,8 +317,8 @@ MonoBehaviour:
     y: 0
     width: 828.5
     height: 426
-  m_MinSize: {x: 200, y: 200}
-  m_MaxSize: {x: 4000, y: 4000}
+  m_MinSize: {x: 202, y: 226}
+  m_MaxSize: {x: 4002, y: 4026}
   m_ActualView: {fileID: 2}
   m_Panes:
   - {fileID: 9}
@@ -997,8 +997,8 @@ MonoBehaviour:
     y: 426
     width: 1101.5
     height: 291
-  m_MinSize: {x: 100, y: 100}
-  m_MaxSize: {x: 4000, y: 4000}
+  m_MinSize: {x: 101, y: 126}
+  m_MaxSize: {x: 4001, y: 4026}
   m_ActualView: {fileID: 12}
   m_Panes:
   - {fileID: 11}
@@ -1213,8 +1213,8 @@ MonoBehaviour:
     y: 0
     width: 338.5
     height: 717
-  m_MinSize: {x: 275, y: 50}
-  m_MaxSize: {x: 4000, y: 4000}
+  m_MinSize: {x: 276, y: 76}
+  m_MaxSize: {x: 4001, y: 4026}
   m_ActualView: {fileID: 14}
   m_Panes:
   - {fileID: 14}

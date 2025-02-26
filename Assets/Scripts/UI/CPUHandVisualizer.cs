@@ -23,6 +23,43 @@ public class CPUHandVisualizer : MonoBehaviour
     private const float REFERENCE_CHECK_INTERVAL = 1f;
     private bool referencesValid = false;
 
+    // Add events
+    public System.Action<string> OnReferenceError;
+    public System.Action<string> OnReferenceRestored;
+    public System.Action<ReferenceState> OnReferenceStateChanged;
+
+    // Make ReferenceState public
+    [System.Serializable]
+    public class ReferenceState
+    {
+        public bool canvasValid;
+        public bool deckAreaValid;
+        public bool discardAreaValid;
+        public bool transformValid;
+        public int validCardCount;
+        public int totalCardCount;
+        public string lastError;
+        public System.DateTime lastCheck;
+
+        public ReferenceState()
+        {
+            lastCheck = System.DateTime.Now;
+        }
+
+        public bool IsFullyValid()
+        {
+            return canvasValid && deckAreaValid && discardAreaValid && 
+                   transformValid && validCardCount == totalCardCount;
+        }
+    }
+
+    private ReferenceState currentState = new ReferenceState();
+    
+    // Add persistence
+    private const string REFERENCE_STATE_KEY = "CPUHandVisualizerState";
+    private const int STATE_SAVE_INTERVAL = 30; // Save every 30 seconds
+    private float lastSaveTime;
+
     private enum InitializationState
     {
         NotStarted,
@@ -250,9 +287,10 @@ public class CPUHandVisualizer : MonoBehaviour
         }
     }
 
-    private void UpdatePlayerHand(Player player)
+    private void UpdatePlayerHand(Player player, bool skipValidation = false)
     {
-        if (!ValidatePlayer(player, "UpdatePlayerHand")) return;
+        // Skip validation checks during recovery
+        if (!skipValidation && !ValidatePlayer(player, "UpdatePlayerHand")) return;
 
         try
         {
@@ -564,7 +602,7 @@ public class CPUHandVisualizer : MonoBehaviour
         
         RectTransform rt = cardObj.GetComponent<RectTransform>();
         Vector2 startPos = deckArea.anchoredPosition;
-        Vector2 endPos = GetHandPosition(GetPlayerIndex(player)) + new Vector2(player.Hand.Count * cardSpacing, 0);
+        Vector2 endPos = GetHandPosition(GetPlayerIndex(player)) + new Vector2(cpuCards[player].Count * cardSpacing, 0);
         rt.anchoredPosition = startPos;
         rt.localRotation = GetHandRotation(GetPlayerIndex(player));
 
@@ -583,12 +621,8 @@ public class CPUHandVisualizer : MonoBehaviour
         }
         rt.anchoredPosition = endPos;
 
-        // Verify the count matches
-        if (cpuCards[player].Count != player.Hand.Count)
-        {
-            Debug.LogWarning($"Card count mismatch after draw. Visual: {cpuCards[player].Count}, Actual: {player.Hand.Count}. Fixing...");
-            UpdatePlayerHand(player);
-        }
+        // Skip validation during animation
+        yield return new WaitForSeconds(0.1f);
     }
 
     private int GetPlayerIndex(Player player)
@@ -611,6 +645,7 @@ public class CPUHandVisualizer : MonoBehaviour
 
     private void Start()
     {
+        LoadReferenceState();
         if (enableRuntimeValidation)
         {
             StartCoroutine(RuntimeStateValidation());
@@ -760,9 +795,9 @@ public class CPUHandVisualizer : MonoBehaviour
             CleanupExistingCards(player);
         }
         
-        // Reinitialize player's cards
+        // Reinitialize player's cards with validation disabled
         cpuCards[player] = new List<GameObject>();
-        UpdatePlayerHand(player);
+        UpdatePlayerHand(player, true);
     }
 
     private IEnumerator ReferenceValidationRoutine()
@@ -780,12 +815,14 @@ public class CPUHandVisualizer : MonoBehaviour
     {
         try
         {
-            bool previousState = referencesValid;
+            ReferenceState newState = new ReferenceState();
+            bool previousValid = referencesValid;
             referencesValid = true;
 
             // Check Canvas
             Canvas canvas = FindFirstObjectByType<Canvas>();
-            if (canvas == null)
+            newState.canvasValid = canvas != null;
+            if (!newState.canvasValid)
             {
                 LogReferenceError("Canvas not found");
                 referencesValid = false;
@@ -795,15 +832,11 @@ public class CPUHandVisualizer : MonoBehaviour
             if (deckArea == null)
             {
                 deckArea = canvas?.transform.Find("DeckArea")?.GetComponent<RectTransform>();
-                if (deckArea == null)
-                {
-                    LogReferenceError("DeckArea reference lost");
-                    referencesValid = false;
-                }
             }
-            else if (!deckArea.gameObject.activeInHierarchy)
+            newState.deckAreaValid = deckArea != null && deckArea.gameObject.activeInHierarchy;
+            if (!newState.deckAreaValid)
             {
-                LogReferenceError("DeckArea inactive");
+                LogReferenceError("DeckArea reference invalid");
                 referencesValid = false;
             }
 
@@ -811,63 +844,86 @@ public class CPUHandVisualizer : MonoBehaviour
             if (discardArea == null)
             {
                 discardArea = canvas?.transform.Find("DiscardArea")?.GetComponent<RectTransform>();
-                if (discardArea == null)
-                {
-                    LogReferenceError("DiscardArea reference lost");
-                    referencesValid = false;
-                }
             }
-            else if (!discardArea.gameObject.activeInHierarchy)
+            newState.discardAreaValid = discardArea != null && discardArea.gameObject.activeInHierarchy;
+            if (!newState.discardAreaValid)
             {
-                LogReferenceError("DiscardArea inactive");
+                LogReferenceError("DiscardArea reference invalid");
                 referencesValid = false;
             }
 
             // Check Transform hierarchy
-            if (transform.parent == null)
+            newState.transformValid = transform.parent != null;
+            if (!newState.transformValid)
             {
                 LogReferenceError("CPUHandVisualizer parent missing");
                 referencesValid = false;
             }
 
             // Check card objects
+            int validCards = 0;
+            int totalCards = 0;
             foreach (var playerCards in cpuCards)
             {
                 foreach (var card in playerCards.Value.ToList())
                 {
-                    if (card == null)
-                    {
-                        continue;
-                    }
+                    totalCards++;
+                    if (card == null) continue;
 
+                    bool cardValid = true;
                     if (card.transform.parent != transform)
                     {
                         LogReferenceError($"Card {card.name} has incorrect parent");
                         card.transform.SetParent(transform, false);
+                        cardValid = false;
                     }
 
                     if (!card.activeInHierarchy)
                     {
                         LogReferenceError($"Card {card.name} inactive");
                         card.SetActive(true);
+                        cardValid = false;
                     }
 
                     if (card.GetComponent<RectTransform>() == null)
                     {
                         LogReferenceError($"Card {card.name} missing RectTransform");
                         playerCards.Value.Remove(card);
+                        cardValid = false;
                     }
+
+                    if (cardValid) validCards++;
                 }
             }
+            newState.validCardCount = validCards;
+            newState.totalCardCount = totalCards;
 
-            // If references were invalid but now valid
-            if (!previousState && referencesValid)
+            // Update state and trigger events
+            if (!currentState.IsFullyValid() && newState.IsFullyValid())
+            {
+                OnReferenceRestored?.Invoke("All references restored");
+            }
+            else if (currentState.IsFullyValid() && !newState.IsFullyValid())
+            {
+                OnReferenceError?.Invoke("References became invalid");
+            }
+
+            currentState = newState;
+            OnReferenceStateChanged?.Invoke(currentState);
+
+            // Save state periodically
+            if (Time.time - lastSaveTime > STATE_SAVE_INTERVAL)
+            {
+                SaveReferenceState();
+            }
+
+            // Handle recovery if needed
+            if (!previousValid && referencesValid)
             {
                 Debug.Log("References restored successfully");
                 AttemptStateRecovery();
             }
-            // If references became invalid
-            else if (previousState && !referencesValid)
+            else if (previousValid && !referencesValid)
             {
                 Debug.LogWarning("References became invalid, attempting recovery...");
                 AttemptReferenceRecovery();
@@ -932,5 +988,45 @@ public class CPUHandVisualizer : MonoBehaviour
     {
         Debug.LogError($"[Reference Error] {message}");
         referencesValid = false;
+        currentState.lastError = message;
+        OnReferenceError?.Invoke(message);
+    }
+
+    private void SaveReferenceState()
+    {
+        try
+        {
+            string stateJson = JsonUtility.ToJson(currentState);
+            PlayerPrefs.SetString(REFERENCE_STATE_KEY, stateJson);
+            PlayerPrefs.Save();
+            lastSaveTime = Time.time;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Failed to save reference state: {e.Message}");
+        }
+    }
+
+    private void LoadReferenceState()
+    {
+        try
+        {
+            if (PlayerPrefs.HasKey(REFERENCE_STATE_KEY))
+            {
+                string stateJson = PlayerPrefs.GetString(REFERENCE_STATE_KEY);
+                ReferenceState savedState = JsonUtility.FromJson<ReferenceState>(stateJson);
+                
+                // Check if saved state is recent enough (within last hour)
+                if ((System.DateTime.Now - savedState.lastCheck).TotalHours < 1)
+                {
+                    currentState = savedState;
+                    OnReferenceStateChanged?.Invoke(currentState);
+                }
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Failed to load reference state: {e.Message}");
+        }
     }
 } 
