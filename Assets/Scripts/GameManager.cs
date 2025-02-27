@@ -97,6 +97,11 @@ public class GameManager : MonoBehaviour
         suitSelectorObj.transform.SetParent(FindFirstObjectByType<Canvas>().transform, false);
         suitSelector = suitSelectorObj.AddComponent<SuitSelector>();
         suitSelector.gameObject.SetActive(false);
+
+        // Add simulation UI
+        GameObject simUIObj = new GameObject("SimulationUI");
+        simUIObj.transform.SetParent(FindFirstObjectByType<Canvas>().transform, false);
+        simUIObj.AddComponent<SimulationUI>();
     }
 
     public void InitializeSimulation(int playerCount, float delay, bool logging)

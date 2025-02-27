@@ -40,3 +40,8 @@ Add more sprite generation options?
 Add card border customization?
 Add texture caching for better performance?
 Add more shape options for cards?
+
+Add more UI controls?
+Add simulation settings?
+Add more statistics display?
+Add animation effects?

@@ -133,7 +133,12 @@ public class GameStatistics : MonoBehaviour
 
         float decisionTime = Time.time - lastActionTime;
         stats.decisionTimes.Add(decisionTime);
-        stats.averageDecisionTime = stats.decisionTimes.Average();
+        
+        // Safe average calculation for decision time
+        if (stats.decisionTimes.Count > 0)
+        {
+            stats.averageDecisionTime = (float)stats.decisionTimes.Average();
+        }
         
         lastActionTime = Time.time;
 
@@ -225,7 +230,16 @@ public class GameStatistics : MonoBehaviour
 
         var stats = playerStats[player.Name];
         stats.turnCount++;
-        stats.averageHandSize = ((stats.averageHandSize * (stats.turnCount - 1)) + player.Hand.Count) / stats.turnCount;
+        
+        // Safe average calculation for hand size
+        if (stats.turnCount > 1)
+        {
+            stats.averageHandSize = ((stats.averageHandSize * (stats.turnCount - 1)) + player.Hand.Count) / stats.turnCount;
+        }
+        else
+        {
+            stats.averageHandSize = player.Hand.Count;
+        }
     }
 
     private void LogAction(string message)
@@ -266,47 +280,77 @@ public class GameStatistics : MonoBehaviour
 
     private void PrintBatchSummary()
     {
-        Debug.Log($"\n=== Batch Simulation Summary ({batchSize} games) ===");
-        
-        // Game statistics
-        float avgDuration = (float)batchStats.Average(g => g.duration);
-        float avgTurns = (float)batchStats.Average(g => g.totalTurns);
-        Debug.Log($"Average game duration: {avgDuration:F2}s");
-        Debug.Log($"Average turns per game: {avgTurns:F2}");
-        Debug.Log($"Average special effects per game: {(float)batchStats.Average(g => g.specialEffectsTriggered):F2}");
-
-        // Player statistics
-        foreach (var stat in playerStats.Values)
+        if (batchSize <= 0 || batchStats.Count == 0)
         {
-            stat.winRate = (float)stat.wins / batchSize;
-            Debug.Log($"\n{stat.playerName} Statistics:");
-            Debug.Log($"Win rate: {stat.winRate:P2}");
-            Debug.Log($"Average cards played per game: {(float)stat.cardsPlayed / batchSize:F2}");
-            Debug.Log($"Average cards drawn per game: {(float)stat.cardsDrawn / batchSize:F2}");
-            Debug.Log($"Average decision time: {stat.averageDecisionTime:F2}s");
-            Debug.Log($"Sequential play chains: {stat.sequentialPlayChains}");
-            Debug.Log($"Longest sequential chain: {stat.longestSequentialChain}");
-            Debug.Log($"Average turns until first play: {(float)stat.turnsTillFirstPlay.Average():F2}");
-            
-            Debug.Log("Special effect usage:");
-            foreach (var effect in stat.specialEffectUsage.OrderByDescending(x => x.Value))
-            {
-                Debug.Log($"  {effect.Key}: {effect.Value} times ({(float)effect.Value / batchSize:F2} per game)");
-            }
+            Debug.LogWarning("No games were played in this batch.");
+            return;
         }
 
-        // Game flow analysis
-        var shortestGame = batchStats.Min(g => g.totalTurns);
-        var longestGame = batchStats.Max(g => g.totalTurns);
-        Debug.Log($"\nGame length range: {shortestGame}-{longestGame} turns");
+        Debug.Log($"\n=== Batch Simulation Summary ({batchStats.Count} games) ===");
         
-        // Winner distribution
-        var winnerStats = batchStats.GroupBy(g => g.winner)
-                                  .OrderByDescending(g => g.Count());
-        Debug.Log("\nWinner distribution:");
-        foreach (var winner in winnerStats)
+        try
         {
-            Debug.Log($"  {winner.Key}: {winner.Count()} wins ({(float)winner.Count() / batchSize:P2})");
+            // Game statistics
+            float avgDuration = (float)batchStats.Average(g => g.duration);
+            float avgTurns = (float)batchStats.Average(g => g.totalTurns);
+            Debug.Log($"Average game duration: {avgDuration:F2}s");
+            Debug.Log($"Average turns per game: {avgTurns:F2}");
+            Debug.Log($"Average special effects per game: {(float)batchStats.Average(g => g.specialEffectsTriggered):F2}");
+
+            // Player statistics
+            foreach (var stat in playerStats.Values)
+            {
+                stat.winRate = batchSize > 0 ? (float)stat.wins / batchSize : 0;
+                Debug.Log($"\n{stat.playerName} Statistics:");
+                Debug.Log($"Win rate: {stat.winRate:P2}");
+                Debug.Log($"Average cards played per game: {(batchSize > 0 ? (float)stat.cardsPlayed / batchSize : 0):F2}");
+                Debug.Log($"Average cards drawn per game: {(batchSize > 0 ? (float)stat.cardsDrawn / batchSize : 0):F2}");
+                Debug.Log($"Average decision time: {(stat.decisionTimes.Count > 0 ? stat.averageDecisionTime : 0):F2}s");
+                Debug.Log($"Sequential play chains: {stat.sequentialPlayChains}");
+                Debug.Log($"Longest sequential chain: {stat.longestSequentialChain}");
+                
+                // Safe average calculation for turns till first play
+                float avgTurnsToFirst = 0;
+                if (stat.turnsTillFirstPlay.Count > 0)
+                {
+                    avgTurnsToFirst = (float)stat.turnsTillFirstPlay.Average();
+                }
+                Debug.Log($"Average turns until first play: {avgTurnsToFirst:F2}");
+                
+                Debug.Log("Special effect usage:");
+                foreach (var effect in stat.specialEffectUsage.OrderByDescending(x => x.Value))
+                {
+                    float perGame = batchSize > 0 ? (float)effect.Value / batchSize : 0;
+                    Debug.Log($"  {effect.Key}: {effect.Value} times ({perGame:F2} per game)");
+                }
+            }
+
+            // Game flow analysis
+            if (batchStats.Any())
+            {
+                var shortestGame = batchStats.Min(g => g.totalTurns);
+                var longestGame = batchStats.Max(g => g.totalTurns);
+                Debug.Log($"\nGame length range: {shortestGame}-{longestGame} turns");
+                
+                // Winner distribution
+                var winnerStats = batchStats.GroupBy(g => g.winner)
+                                          .OrderByDescending(g => g.Count());
+                Debug.Log("\nWinner distribution:");
+                foreach (var winner in winnerStats)
+                {
+                    float winPercentage = batchSize > 0 ? (float)winner.Count() / batchSize : 0;
+                    Debug.Log($"  {winner.Key}: {winner.Count()} wins ({winPercentage:P2})");
+                }
+            }
+            else
+            {
+                Debug.LogWarning("No game statistics available for analysis.");
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error generating batch summary: {e.Message}");
+            Debug.LogError($"Stack trace: {e.StackTrace}");
         }
     }
 
