@@ -250,14 +250,23 @@ public class GameManager : MonoBehaviour
                 break;
         }
 
+        DiscardCard(card);
+        OnCardPlayed?.Invoke(card, player);
+
+        // Check if player has won
+        if (player.Hand.Count == 0)
+        {
+            Debug.Log($"{player.Name} wins the game!");
+            CurrentState = GameState.GameOver;
+            OnGameStateChanged?.Invoke(CurrentState);
+            return;
+        }
+
         // Handle Macau calls
         if (player.Hand.Count == 2 && !hasCalledMacau)
         {
             canCallStopMacau = true;
         }
-
-        DiscardCard(card);
-        OnCardPlayed?.Invoke(card, player);
     }
 
     public void CallMacau(Player player)
@@ -292,6 +301,7 @@ public class GameManager : MonoBehaviour
 
     public void CheckGameEnd()
     {
+        // Check if any player has won
         foreach (Player player in players)
         {
             if (player.Hand.Count == 0)
@@ -303,10 +313,13 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        if (deck.IsEmpty())
+        // Check if deck is empty and no one can play
+        if (deck.IsEmpty() && players.All(p => !p.Hand.Any(c => IsValidPlay(c))))
         {
             CurrentState = GameState.GameOver;
-            Debug.Log("Game Over - Deck is empty!");
+            // Find player with fewest cards
+            var winner = players.OrderBy(p => p.Hand.Count).First();
+            Debug.Log($"Game Over - Deck empty! {winner.Name} wins with fewest cards ({winner.Hand.Count})!");
             OnGameStateChanged?.Invoke(CurrentState);
         }
     }
@@ -384,6 +397,12 @@ public class GameManager : MonoBehaviour
             yield return new WaitForSeconds(simulationDelay);
             
             PlayCard(cardToPlay, CurrentPlayer);
+
+            // Don't continue turn if game is over
+            if (CurrentState == GameState.GameOver)
+            {
+                yield break;
+            }
         }
         else
         {
