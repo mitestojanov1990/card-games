@@ -2,10 +2,17 @@ using UnityEngine;
 using System.Linq;
 using System.Collections.Generic;
 using CardGame.Exceptions;
-using CardGame.Core.Interfaces;
 
 namespace CardGame.Core
 {
+    public interface ICard
+    {
+        string Rank { get; }
+        string Suit { get; }
+        Color Color { get; }
+        int Value { get; }
+    }
+
     [System.Serializable]
     public class Card : ICard
     {
@@ -27,7 +34,7 @@ namespace CardGame.Core
         public Card(string rank, string suit)
         {
             ValidateCard(rank, suit);
-            
+
             Rank = rank;
             Suit = suit;
             Color = (suit == "♥" || suit == "♦") ? Color.red : Color.black;
@@ -38,19 +45,19 @@ namespace CardGame.Core
         {
             if (string.IsNullOrEmpty(rank))
                 throw new GameValidationException("Card rank cannot be null or empty");
-            
+
             if (string.IsNullOrEmpty(suit))
                 throw new GameValidationException("Card suit cannot be null or empty");
 
             if (!ValidRanks.Contains(rank))
                 throw new GameValidationException($"Invalid card rank: {rank}");
-            
+
             if (!ValidSuits.Contains(suit))
                 throw new GameValidationException($"Invalid card suit: {suit}");
 
             if (!RankValues.ContainsKey(rank))
                 throw new GameValidationException($"No value defined for rank: {rank}");
-            
+
             if (suit.Length != 1)
                 throw new GameValidationException($"Suit must be a single character: {suit}");
         }
@@ -67,4 +74,4 @@ namespace CardGame.Core
             }
         }
     }
-} 
+}

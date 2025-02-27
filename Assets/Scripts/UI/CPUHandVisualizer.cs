@@ -5,12 +5,15 @@ using System.Linq;
 using System.Collections;
 using CardGame.Core;
 using CardGame.Players;
+using CardGame.Core.Interfaces;
+using CardGame.Rules.Interfaces;
+using CardGame.Players.Interfaces;
 
 namespace CardGame.UI
 {
     public class CPUHandVisualizer : MonoBehaviour
     {
-        private Dictionary<Player, List<GameObject>> cpuCards = new Dictionary<Player, List<GameObject>>();
+        private Dictionary<IPlayer, List<GameObject>> cpuCards = new Dictionary<IPlayer, List<GameObject>>();
         private float cardWidth = 100f;
         private float cardHeight = 150f;
         private float cardSpacing = 30f;
@@ -291,7 +294,7 @@ namespace CardGame.UI
             }
         }
 
-        private void UpdatePlayerHand(Player player, bool skipValidation = false)
+        private void UpdatePlayerHand(IPlayer player, bool skipValidation = false)
         {
             // Skip validation checks during recovery
             if (!skipValidation && !ValidatePlayer(player, "UpdatePlayerHand")) return;
@@ -329,7 +332,7 @@ namespace CardGame.UI
             }
         }
 
-        private IEnumerator RetryUpdateHand(Player player, int attemptCount = 0)
+        private IEnumerator RetryUpdateHand(IPlayer player, int attemptCount = 0)
         {
             if (attemptCount >= MAX_RETRY_ATTEMPTS)
             {
@@ -341,7 +344,7 @@ namespace CardGame.UI
             UpdatePlayerHand(player);
         }
 
-        private void CleanupExistingCards(Player player)
+        private void CleanupExistingCards(IPlayer player)
         {
             foreach (var card in cpuCards[player].Where(c => c != null))
             {
@@ -357,7 +360,7 @@ namespace CardGame.UI
             cpuCards[player].Clear();
         }
 
-        private void CreateNewCards(Player player)
+        private void CreateNewCards(IPlayer player)
         {
             int playerIndex = GetPlayerIndex(player);
             Vector2 startPos = GetHandPosition(playerIndex);
@@ -398,7 +401,7 @@ namespace CardGame.UI
             rt.localRotation = rotation;
         }
 
-        private bool ValidatePlayer(Player player, string context)
+        private bool ValidatePlayer(IPlayer player, string context)
         {
             if (!referencesValid)
             {
@@ -517,7 +520,7 @@ namespace CardGame.UI
             return Quaternion.Euler(0, 0, -angle);
         }
 
-        private void HandleCardPlayed(Card card, Player player)
+        private void HandleCardPlayed(ICard card, IPlayer player)
         {
             if (!referencesValid)
             {
@@ -531,7 +534,7 @@ namespace CardGame.UI
             }
         }
 
-        private IEnumerator HandleCardPlayedAnimation(Card card, Player player)
+        private IEnumerator HandleCardPlayedAnimation(ICard card, IPlayer player)
         {
             if (cpuCards.ContainsKey(player) && cpuCards[player].Count > 0)
             {
@@ -569,7 +572,7 @@ namespace CardGame.UI
             }
         }
 
-        private void HandleCardDrawn(Card card, Player player)
+        private void HandleCardDrawn(ICard card, IPlayer player)
         {
             if (!referencesValid)
             {
@@ -590,7 +593,7 @@ namespace CardGame.UI
             }
         }
 
-        private IEnumerator HandleCardDrawnAnimation(Card card, Player player)
+        private IEnumerator HandleCardDrawnAnimation(ICard card, IPlayer player)
         {
             // Wait a frame to ensure the card is added to the player's hand
             yield return null;
@@ -629,7 +632,7 @@ namespace CardGame.UI
             yield return new WaitForSeconds(0.1f);
         }
 
-        private int GetPlayerIndex(Player player)
+        private int GetPlayerIndex(IPlayer player)
         {
             return GameManager.Instance.GetPlayerIndex(player);
         }
@@ -708,7 +711,7 @@ namespace CardGame.UI
             }
         }
 
-        private void ValidatePlayerState(Player player)
+        private void ValidatePlayerState(IPlayer player)
         {
             if (!cpuCards.ContainsKey(player))
             {
@@ -755,7 +758,7 @@ namespace CardGame.UI
         {
             foreach (var kvp in cpuCards)
             {
-                Player player = kvp.Key;
+                IPlayer player = kvp.Key;
                 int visualCount = kvp.Value.Count;
                 int actualCount = player.Hand.Count;
 
@@ -789,7 +792,7 @@ namespace CardGame.UI
             Initialize();
         }
 
-        private void RecoverPlayerState(Player player)
+        private void RecoverPlayerState(IPlayer player)
         {
             Debug.Log($"Recovering state for player {player.Name}...");
             

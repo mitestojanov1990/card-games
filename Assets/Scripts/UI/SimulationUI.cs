@@ -3,6 +3,8 @@ using UnityEngine.UI;
 using System.Linq;
 using CardGame.Core;
 using CardGame.Players;
+using CardGame.Rules;
+using CardGame.Rules.Interfaces;
 
 namespace CardGame.UI
 {
@@ -388,7 +390,7 @@ namespace CardGame.UI
                 );
             }
 
-            bool isSpecial = CardRules.GetCardEffect(card) != CardRules.SpecialEffect.None;
+            bool isSpecial = CardRules.Instance.GetCardEffect(card) != SpecialEffect.None;
             playAnimation.QueueCardPlay(card, startPos, isSpecial);
 
             // Clear draw notifications if a counter card was played

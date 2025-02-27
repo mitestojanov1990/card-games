@@ -40,13 +40,13 @@ namespace CardGame.DI
         private void InitializeContainer()
         {
             // Initialize core systems
-            cardRules = CardRules.Instance;
+            cardRules = CardGame.Rules.CardRules.Instance;
             deck = new Deck();
 
             // Initialize Unity components
             var uiManagerObj = new GameObject("UIManager");
             uiManagerObj.transform.SetParent(transform);
-            uiManager = uiManagerObj.AddComponent<UIManager>();
+            uiManager = uiManagerObj.AddComponent<UIManager>() as IUIManager;
 
             var gameManagerObj = new GameObject("GameManager");
             gameManagerObj.transform.SetParent(transform);
@@ -64,4 +64,4 @@ namespace CardGame.DI
             }
         }
     }
-} 
+}

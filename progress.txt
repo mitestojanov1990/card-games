@@ -72,3 +72,6 @@ Add scoped dependencies?
 Add factory patterns?
 Add unit tests?
 Add more dependency configurations?
+
+
+Add interface segregation?

@@ -1,11 +1,18 @@
 using UnityEngine;
 using System.Collections.Generic;
 using CardGame.Exceptions;
-using CardGame.Core;
-using CardGame.Core.Interfaces;
 
 namespace CardGame.Core
 {
+    public interface IDeck
+    {
+        int RemainingCards { get; }
+        bool IsEmpty();
+        void Shuffle();
+        ICard DrawCard();
+        void ValidateDrawCard();
+    }
+
     public class Deck : IDeck
     {
         private List<ICard> cards = new List<ICard>();
@@ -34,7 +41,8 @@ namespace CardGame.Core
             {
                 foreach (string rank in ranks)
                 {
-                    cards.Add(new Card(rank, suit));
+                    ICard card = new Card(rank, suit);
+                    cards.Add(card);
                 }
             }
         }
@@ -42,7 +50,7 @@ namespace CardGame.Core
         public void Shuffle()
         {
             ValidateShuffle();
-            
+
             for (int i = cards.Count - 1; i > 0; i--)
             {
                 int j = Random.Range(0, i + 1);
@@ -74,7 +82,7 @@ namespace CardGame.Core
             return card;
         }
 
-        private void ValidateDrawCard()
+        public void ValidateDrawCard()
         {
             if (cards == null)
                 throw new GameValidationException("Deck not initialized");
@@ -82,4 +90,4 @@ namespace CardGame.Core
                 throw new GameValidationException("Cannot draw from empty deck");
         }
     }
-} 
+}

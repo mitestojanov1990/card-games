@@ -1,124 +1,145 @@
 using UnityEngine;
 using UnityEngine.UI;
-using System.Collections;
 using CardGame.Core;
-using CardGame.Players;
-using CardGame.Rules;
-using CardGame.UI.Interfaces;
 
 namespace CardGame.UI
 {
+    public interface IUIManager
+    {
+        void ShowStartScreen();
+        void UpdateGameUI();
+        void ShowGameOverScreen();
+        void SetUIScale(float scale);
+        void ToggleDebugInfo();
+    }
     public class UIManager : MonoBehaviour, IUIManager
     {
-        private static UIManager instance;
-        public static UIManager Instance => instance;
+        public Text gameStateText;
+        public Text scoreText;
+        public Button startGameButton;
+        public GameObject gameOverPanel;
 
-        [Header("UI References")]
-        private Canvas mainCanvas;
-        private CPUHandVisualizer cpuHandVisualizer;
-        private SimulationUI simulationUI;
-
-        [Header("UI Settings")]
-        private float uiScale = 1f;
-        private bool showDebugInfo = false;
-
-        private void Awake()
+        public void ShowStartScreen()
         {
-            if (instance == null)
+            if (gameStateText != null)
             {
-                instance = this;
-                DontDestroyOnLoad(gameObject);
-                InitializeUI();
-            }
-            else
-            {
-                Destroy(gameObject);
-            }
-        }
-
-        private void InitializeUI()
-        {
-            // Setup main canvas
-            mainCanvas = FindFirstObjectByType<Canvas>();
-            if (mainCanvas == null)
-            {
-                GameObject canvasObj = new GameObject("MainCanvas");
-                mainCanvas = canvasObj.AddComponent<Canvas>();
-                canvasObj.AddComponent<CanvasScaler>();
-                canvasObj.AddComponent<GraphicRaycaster>();
-                mainCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                gameStateText.text = "Press Start to Begin";
             }
 
-            // Setup CPU hand visualizer
-            GameObject cpuHandObj = new GameObject("CPUHandVisualizer");
-            cpuHandObj.transform.SetParent(mainCanvas.transform, false);
-            cpuHandVisualizer = cpuHandObj.AddComponent<CPUHandVisualizer>();
-
-            // Setup simulation UI
-            GameObject simUIObj = new GameObject("SimulationUI");
-            simUIObj.transform.SetParent(mainCanvas.transform, false);
-            simulationUI = simUIObj.AddComponent<SimulationUI>();
-
-            // Subscribe to game events
-            if (GameManager.Instance != null)
+            if (startGameButton != null)
             {
-                GameManager.Instance.OnGameStateChanged += HandleGameStateChanged;
+                startGameButton.gameObject.SetActive(true);
+                startGameButton.onClick.RemoveAllListeners();
+                startGameButton.onClick.AddListener(StartNewGame);
             }
-            else
+
+            if (gameOverPanel != null)
             {
-                Debug.LogError("GameManager not found during UI initialization");
+                gameOverPanel.SetActive(false);
             }
         }
 
-        private void HandleGameStateChanged(GameManager.GameState newState)
+        public void UpdateGameUI()
         {
-            switch (newState)
+            // Implement logic to update the game UI
+            // For example, updating scores, player names, etc.
+            if (scoreText != null)
             {
-                case GameManager.GameState.WaitingToStart:
-                    ShowStartScreen();
-                    break;
-                case GameManager.GameState.PlayerTurn:
-                    UpdateGameUI();
-                    break;
-                case GameManager.GameState.GameOver:
-                    ShowGameOverScreen();
-                    break;
+                // Assuming you have a way to get the current score
+                scoreText.text = $"Score: {GameManager.Instance.CurrentPlayer.Score}"; // Example
             }
         }
 
-        private void ShowStartScreen()
+        public void ShowGameOverScreen()
         {
-            // Implementation for start screen
-        }
-
-        private void UpdateGameUI()
-        {
-            // Implementation for game UI updates
-        }
-
-        private void ShowGameOverScreen()
-        {
-            // Implementation for game over screen
+            if (gameOverPanel != null)
+            {
+                gameOverPanel.SetActive(true);
+                gameStateText.text = "Game Over!";
+            }
         }
 
         public void SetUIScale(float scale)
         {
-            uiScale = Mathf.Clamp(scale, 0.5f, 2f);
-            mainCanvas.GetComponent<CanvasScaler>().scaleFactor = uiScale;
+            // Assuming you want to scale the entire UI
+            Canvas canvas = GetComponent<Canvas>();
+            if (canvas != null)
+            {
+                canvas.scaleFactor = scale;
+            }
         }
 
         public void ToggleDebugInfo()
         {
-            showDebugInfo = !showDebugInfo;
-            // Implementation for showing/hiding debug info
+            // Assuming you have a debug panel or similar
+            // This is a placeholder implementation
+            Debug.Log("Toggling debug info");
+        }
+
+        private void Start()
+        {
+            ShowStartScreen();
+
+            // Subscribe to GameManager events
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.OnGameStateChanged += UpdateGameState;
+            }
+        }
+
+        private void UpdateGameState(GameState newState)  // Changed from GameManager.GameState
+        {
+            if (gameStateText == null) return;
+
+            switch (newState)
+            {
+                case GameState.WaitingToStart:  // Updated enum references
+                    gameStateText.text = "Press Start to Begin";
+                    if (startGameButton != null)
+                    {
+                        startGameButton.gameObject.SetActive(true);
+                    }
+                    break;
+                case GameState.PlayerTurn:  // Updated enum references
+                    gameStateText.text = "Your Turn";
+                    if (startGameButton != null)
+                    {
+                        startGameButton.gameObject.SetActive(false);
+                    }
+                    break;
+                case GameState.GameOver:  // Updated enum references
+                    ShowGameOverScreen();
+                    break;
+            }
+
+            // Call UpdateGameUI to refresh the UI based on the current game state
+            UpdateGameUI();
+        }
+
+        private void StartNewGame()
+        {
+            Debug.Log("UIManager: Start button clicked");
+            if (GameManager.Instance != null)
+            {
+                Debug.Log("UIManager: Starting new game through GameManager");
+                GameManager.Instance.StartNewGame();
+                if (gameOverPanel != null)
+                {
+                    gameOverPanel.SetActive(false);
+                }
+            }
+            else
+            {
+                Debug.LogError("UIManager: GameManager.Instance is null!");
+            }
         }
 
         private void OnDestroy()
         {
             if (GameManager.Instance != null)
             {
-                GameManager.Instance.OnGameStateChanged -= HandleGameStateChanged;
+                GameManager.Instance.OnGameStateChanged -= UpdateGameState;
             }
         }
     }
-} 
+}

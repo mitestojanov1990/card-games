@@ -1,6 +1,9 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using CardGame;
+using CardGame.Core;
+using CardGame.Stats;
 
 public class GameBootstrap : MonoBehaviour
 {

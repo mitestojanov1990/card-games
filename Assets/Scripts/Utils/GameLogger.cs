@@ -151,7 +151,7 @@ namespace CardGame.Utils
             return logs;
         }
 
-        private void HandleUnityLog(string logString, string stackTrace, LogType type)
+        private void HandleUnityLog(string logString, string stackTrace, UnityEngine.LogType type)
         {
             switch (type)
             {
@@ -160,6 +160,9 @@ namespace CardGame.Utils
                     Log(logString + "\n" + stackTrace, LogType.Error);
                     break;
                 case UnityEngine.LogType.Warning:
+                    Log(logString, LogType.Warning);
+                    break;
+                case UnityEngine.LogType.Assert:
                     Log(logString, LogType.Warning);
                     break;
                 default:
