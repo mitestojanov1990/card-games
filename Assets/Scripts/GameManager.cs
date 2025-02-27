@@ -424,4 +424,3 @@ public class GameManager : MonoBehaviour
         suitSelector.Show(center);
     }
 } 
-} 

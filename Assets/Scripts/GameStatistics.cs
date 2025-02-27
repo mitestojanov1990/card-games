@@ -269,11 +269,11 @@ public class GameStatistics : MonoBehaviour
         Debug.Log($"\n=== Batch Simulation Summary ({batchSize} games) ===");
         
         // Game statistics
-        float avgDuration = batchStats.Average(g => g.duration);
-        float avgTurns = batchStats.Average(g => g.totalTurns);
+        float avgDuration = (float)batchStats.Average(g => g.duration);
+        float avgTurns = (float)batchStats.Average(g => g.totalTurns);
         Debug.Log($"Average game duration: {avgDuration:F2}s");
         Debug.Log($"Average turns per game: {avgTurns:F2}");
-        Debug.Log($"Average special effects per game: {batchStats.Average(g => g.specialEffectsTriggered):F2}");
+        Debug.Log($"Average special effects per game: {(float)batchStats.Average(g => g.specialEffectsTriggered):F2}");
 
         // Player statistics
         foreach (var stat in playerStats.Values)
@@ -286,7 +286,7 @@ public class GameStatistics : MonoBehaviour
             Debug.Log($"Average decision time: {stat.averageDecisionTime:F2}s");
             Debug.Log($"Sequential play chains: {stat.sequentialPlayChains}");
             Debug.Log($"Longest sequential chain: {stat.longestSequentialChain}");
-            Debug.Log($"Average turns until first play: {stat.turnsTillFirstPlay.Average():F2}");
+            Debug.Log($"Average turns until first play: {(float)stat.turnsTillFirstPlay.Average():F2}");
             
             Debug.Log("Special effect usage:");
             foreach (var effect in stat.specialEffectUsage.OrderByDescending(x => x.Value))

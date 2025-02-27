@@ -35,3 +35,8 @@ Add more button effects?
 Adjust the sizes further?
 Add resolution-dependent scaling?
 Add more visual feedback?
+
+Add more sprite generation options?
+Add card border customization?
+Add texture caching for better performance?
+Add more shape options for cards?
