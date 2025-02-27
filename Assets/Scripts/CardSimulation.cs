@@ -1,14 +1,8 @@
 using UnityEngine;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine.UI;
 using CardGame.Core;
-using CardGame.Players;
 using CardGame.UI;
 using CardGame.DI;
-using CardGame.Core.Interfaces;
-using CardGame.UI.Interfaces;
-using CardGame.Rules.Interfaces;
 
 namespace CardGame
 {

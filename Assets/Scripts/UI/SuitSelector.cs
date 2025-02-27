@@ -1,7 +1,9 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using System.Collections.Generic;
 using System.Collections;
+using CardGame.Core;
 
 public class SuitSelector : MonoBehaviour
 {
@@ -24,19 +26,39 @@ public class SuitSelector : MonoBehaviour
     private CanvasGroup canvasGroup;
     private Vector3 originalScale;
     private bool isAnimating = false;
+    private bool isInitialized = false;
 
     private void Awake()
     {
-        SetupUI();
+        // Don't initialize in Awake, let GameManager call Initialize explicitly
+    }
+
+    public void Initialize()
+    {
+        if (isInitialized) return;
+
+        try
+        {
+            // Ensure we have a RectTransform
+            rectTransform = gameObject.GetComponent<RectTransform>();
+            if (rectTransform == null)
+            {
+                rectTransform = gameObject.AddComponent<RectTransform>();
+            }
+
+            SetupUI();
+            isInitialized = true;
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"Failed to initialize SuitSelector: {ex.Message}");
+            throw;
+        }
     }
 
     private void SetupUI()
     {
-        rectTransform = GetComponent<RectTransform>();
-        if (rectTransform == null)
-            rectTransform = gameObject.AddComponent<RectTransform>();
-
-        // Update background panel
+        // Add background panel
         Image background = gameObject.AddComponent<Image>();
         background.color = new Color(0.15f, 0.15f, 0.15f, 0.95f);
 
@@ -50,93 +72,13 @@ public class SuitSelector : MonoBehaviour
         outlineRT.anchorMax = Vector2.one;
         outlineRT.sizeDelta = Vector2.zero;
 
-        // Update title with better styling
-        GameObject titleObj = new GameObject("Title");
-        titleObj.transform.SetParent(transform, false);
-        Text titleText = titleObj.AddComponent<Text>();
-        titleText.text = "SELECT SUIT";
-        titleText.font = Font.CreateDynamicFontFromOSFont("Arial", 36);
-        titleText.fontStyle = FontStyle.Bold;
-        titleText.alignment = TextAnchor.MiddleCenter;
-        titleText.color = new Color(1f, 1f, 1f, 0.95f);
+        // Create title
+        CreateTitle();
 
-        // Add title background
-        Image titleBg = titleObj.AddComponent<Image>();
-        titleBg.color = new Color(0, 0, 0, 0.3f);
+        // Create suit buttons
+        CreateSuitButtons();
 
-        RectTransform titleRT = titleText.GetComponent<RectTransform>();
-        titleRT.anchorMin = new Vector2(0, 1);
-        titleRT.anchorMax = new Vector2(1, 1);
-        titleRT.sizeDelta = new Vector2(0, TITLE_HEIGHT);
-        titleRT.anchoredPosition = new Vector2(0, -TITLE_HEIGHT/2);
-
-        // Update suit buttons with better styling
-        for (int i = 0; i < SUITS.Length; i++)
-        {
-            int row = i / 2;
-            int col = i % 2;
-            
-            GameObject buttonObj = new GameObject($"SuitButton_{SUITS[i]}");
-            buttonObj.transform.SetParent(transform, false);
-            
-            Button button = buttonObj.AddComponent<Button>();
-            Image buttonImage = buttonObj.AddComponent<Image>();
-            buttonImage.color = new Color(0.25f, 0.25f, 0.25f, 1f);
-
-            // Add button highlight color transition
-            ColorBlock colors = button.colors;
-            colors.normalColor = new Color(0.25f, 0.25f, 0.25f, 1f);
-            colors.highlightedColor = new Color(0.35f, 0.35f, 0.35f, 1f);
-            colors.pressedColor = new Color(0.35f, 0.35f, 0.35f, 0.8f);
-            colors.selectedColor = new Color(0.35f, 0.35f, 0.35f, 1f);
-            colors.fadeDuration = 0.1f;
-            button.colors = colors;
-
-            // Add suit text with shadow
-            GameObject textObj = new GameObject("Text");
-            textObj.transform.SetParent(buttonObj.transform, false);
-            Text buttonText = textObj.AddComponent<Text>();
-            buttonText.text = SUITS[i];
-            buttonText.font = Font.CreateDynamicFontFromOSFont("Arial", 48);
-            buttonText.alignment = TextAnchor.MiddleCenter;
-            buttonText.color = SUIT_COLORS[i];
-
-            // Add text shadow
-            Shadow textShadow = textObj.AddComponent<Shadow>();
-            textShadow.effectColor = new Color(0, 0, 0, 0.5f);
-            textShadow.effectDistance = new Vector2(2, -2);
-
-            // Position button
-            RectTransform buttonRT = buttonObj.GetComponent<RectTransform>();
-            buttonRT.sizeDelta = new Vector2(BUTTON_SIZE, BUTTON_SIZE);
-            float x = (col * (BUTTON_SIZE + SPACING)) - ((BUTTON_SIZE + SPACING) / 2);
-            float y = -(row * (BUTTON_SIZE + SPACING)) - TITLE_HEIGHT - SPACING;
-            buttonRT.anchoredPosition = new Vector2(x, y);
-
-            // Add button outline
-            GameObject buttonOutlineObj = new GameObject("ButtonOutline");
-            buttonOutlineObj.transform.SetParent(buttonObj.transform, false);
-            Image buttonOutline = buttonOutlineObj.AddComponent<Image>();
-            buttonOutline.color = new Color(1f, 1f, 1f, 0.1f);
-            RectTransform buttonOutlineRT = buttonOutline.GetComponent<RectTransform>();
-            buttonOutlineRT.anchorMin = Vector2.zero;
-            buttonOutlineRT.anchorMax = Vector2.one;
-            buttonOutlineRT.sizeDelta = new Vector2(2, 2);
-
-            // Setup text
-            RectTransform textRT = textObj.GetComponent<RectTransform>();
-            textRT.anchorMin = Vector2.zero;
-            textRT.anchorMax = Vector2.one;
-            textRT.sizeDelta = Vector2.zero;
-
-            // Add click handler
-            string suit = SUITS[i]; // Capture the suit value
-            button.onClick.AddListener(() => OnSuitSelected(suit));
-
-            suitButtons.Add(button);
-        }
-
-        // Update panel size
+        // Set panel size
         float panelWidth = (BUTTON_SIZE * 2) + SPACING + (PANEL_PADDING * 2);
         float panelHeight = (BUTTON_SIZE * 2) + SPACING + (PANEL_PADDING * 2) + TITLE_HEIGHT;
         rectTransform.sizeDelta = new Vector2(panelWidth, panelHeight);
@@ -151,6 +93,103 @@ public class SuitSelector : MonoBehaviour
         // Hide initially
         gameObject.SetActive(false);
         transform.localScale = Vector3.zero;
+    }
+
+    private void CreateTitle()
+    {
+        try
+        {
+            GameObject titleObj = new GameObject("Title");
+            titleObj.transform.SetParent(transform, false);
+            
+            // Create background first
+            Image titleBg = titleObj.AddComponent<Image>();
+            titleBg.color = new Color(0, 0, 0, 0.3f);
+
+            // Create text object
+            GameObject textObj = new GameObject("TitleText");
+            textObj.transform.SetParent(titleObj.transform, false);
+            
+            // Add basic Text component
+            Text titleText = textObj.AddComponent<Text>();
+            titleText.text = "SELECT SUIT";
+            titleText.fontSize = 36;
+            titleText.fontStyle = FontStyle.Bold;
+            titleText.alignment = TextAnchor.MiddleCenter;
+            titleText.color = new Color(1f, 1f, 1f, 0.95f);
+
+            // Set up RectTransforms
+            RectTransform titleRT = titleObj.GetComponent<RectTransform>();
+            titleRT.anchorMin = new Vector2(0, 1);
+            titleRT.anchorMax = new Vector2(1, 1);
+            titleRT.sizeDelta = new Vector2(0, TITLE_HEIGHT);
+            titleRT.anchoredPosition = new Vector2(0, -TITLE_HEIGHT/2);
+
+            RectTransform textRT = textObj.GetComponent<RectTransform>();
+            textRT.anchorMin = Vector2.zero;
+            textRT.anchorMax = Vector2.one;
+            textRT.sizeDelta = Vector2.zero;
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"Failed to create title: {ex.Message}\nStackTrace: {ex.StackTrace}");
+            throw;
+        }
+    }
+
+    private void CreateSuitButtons()
+    {
+        try
+        {
+            suitButtons.Clear();
+            
+            for (int i = 0; i < SUITS.Length; i++)
+            {
+                int row = i / 2;
+                int col = i % 2;
+                
+                GameObject buttonObj = new GameObject($"SuitButton_{SUITS[i]}");
+                buttonObj.transform.SetParent(transform, false);
+                
+                Button button = buttonObj.AddComponent<Button>();
+                Image buttonImage = buttonObj.AddComponent<Image>();
+                buttonImage.color = new Color(0.25f, 0.25f, 0.25f, 1f);
+
+                // Create text object
+                GameObject textObj = new GameObject("Text");
+                textObj.transform.SetParent(buttonObj.transform, false);
+                
+                Text buttonText = textObj.AddComponent<Text>();
+                buttonText.text = SUITS[i];
+                buttonText.fontSize = 48;
+                buttonText.alignment = TextAnchor.MiddleCenter;
+                buttonText.color = SUIT_COLORS[i];
+
+                // Position button
+                RectTransform buttonRT = buttonObj.GetComponent<RectTransform>();
+                buttonRT.sizeDelta = new Vector2(BUTTON_SIZE, BUTTON_SIZE);
+                float x = (col * (BUTTON_SIZE + SPACING)) - ((BUTTON_SIZE + SPACING) / 2);
+                float y = -(row * (BUTTON_SIZE + SPACING)) - TITLE_HEIGHT - SPACING;
+                buttonRT.anchoredPosition = new Vector2(x, y);
+
+                // Setup text transform
+                RectTransform textRT = textObj.GetComponent<RectTransform>();
+                textRT.anchorMin = Vector2.zero;
+                textRT.anchorMax = Vector2.one;
+                textRT.sizeDelta = Vector2.zero;
+
+                // Add click handler
+                string suit = SUITS[i];
+                button.onClick.AddListener(() => OnSuitSelected(suit));
+
+                suitButtons.Add(button);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"Failed to create suit buttons: {ex.Message}\nStackTrace: {ex.StackTrace}");
+            throw;
+        }
     }
 
     public void Show(Vector2 position)
@@ -268,11 +307,11 @@ public class SuitSelector : MonoBehaviour
     {
         GameObject feedbackObj = new GameObject("Feedback");
         feedbackObj.transform.SetParent(transform, false);
-        Text feedbackText = feedbackObj.AddComponent<Text>();
+        TextMeshProUGUI feedbackText = feedbackObj.AddComponent<TextMeshProUGUI>();
         feedbackText.text = $"Selected {suit}!";
-        feedbackText.font = Font.CreateDynamicFontFromOSFont("Arial", 32);
-        feedbackText.fontStyle = FontStyle.Bold;
-        feedbackText.alignment = TextAnchor.MiddleCenter;
+        feedbackText.fontSize = 32;
+        feedbackText.fontStyle = FontStyles.Bold;
+        feedbackText.alignment = TextAlignmentOptions.Center;
         feedbackText.color = Color.white;
 
         // Add text shadow
@@ -333,10 +372,14 @@ public class SuitSelector : MonoBehaviour
 
     private void OnDisable()
     {
-        // Reset state when disabled
-        StopAllCoroutines();
-        isAnimating = false;
-        transform.localScale = Vector3.zero;
-        canvasGroup.alpha = 0f;
+        // Only run cleanup if we've been initialized
+        if (isInitialized)
+        {
+            // Reset state when disabled
+            StopAllCoroutines();
+            isAnimating = false;
+            transform.localScale = Vector3.zero;
+            canvasGroup.alpha = 0f;
+        }
     }
 } 

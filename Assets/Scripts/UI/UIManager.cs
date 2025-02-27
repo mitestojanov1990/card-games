@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
 using CardGame.Core;
+using CardGame.Utils;
+using CardGame.Players;
 
 namespace CardGame.UI
 {
@@ -18,6 +20,20 @@ namespace CardGame.UI
         public Text scoreText;
         public Button startGameButton;
         public GameObject gameOverPanel;
+
+        private IGameManager gameManager;
+
+        private void Awake()
+        {
+            Debug.Log("UIManager: Awake called");
+            // Do not access GameManager here, it may not be initialized yet
+        }
+
+        public void Initialize(IGameManager gameManager)
+        {
+            this.gameManager = gameManager; // Set the GameManager here
+            SubscribeToEvents(); // Subscribe to events after initialization
+        }
 
         public void ShowStartScreen()
         {
@@ -41,12 +57,9 @@ namespace CardGame.UI
 
         public void UpdateGameUI()
         {
-            // Implement logic to update the game UI
-            // For example, updating scores, player names, etc.
-            if (scoreText != null)
+            if (scoreText != null && gameManager != null)
             {
-                // Assuming you have a way to get the current score
-                scoreText.text = $"Score: {GameManager.Instance.CurrentPlayer.Score}"; // Example
+                scoreText.text = $"Score: {gameManager.CurrentPlayer.Score}";
             }
         }
 
@@ -61,7 +74,6 @@ namespace CardGame.UI
 
         public void SetUIScale(float scale)
         {
-            // Assuming you want to scale the entire UI
             Canvas canvas = GetComponent<Canvas>();
             if (canvas != null)
             {
@@ -71,58 +83,86 @@ namespace CardGame.UI
 
         public void ToggleDebugInfo()
         {
-            // Assuming you have a debug panel or similar
-            // This is a placeholder implementation
             Debug.Log("Toggling debug info");
         }
 
         private void Start()
         {
+            Debug.Log("UIManager: Start called");
             ShowStartScreen();
 
-            // Subscribe to GameManager events
-            if (GameManager.Instance != null)
+            if (gameManager != null)
             {
-                GameManager.Instance.OnGameStateChanged += UpdateGameState;
+                SubscribeToEvents();
+            }
+            else
+            {
+                Debug.LogError("GameManager interface not available!");
             }
         }
 
-        private void UpdateGameState(GameState newState)  // Changed from GameManager.GameState
+        private void SubscribeToEvents()
         {
+            gameManager.OnGameStateChanged += UpdateGameState;
+            gameManager.OnPlayerChanged += HandlePlayerChanged;
+            // Subscribe to other events as needed
+        }
+
+        private void UnsubscribeFromEvents()
+        {
+            if (gameManager != null)
+            {
+                gameManager.OnGameStateChanged -= UpdateGameState;
+                gameManager.OnPlayerChanged -= HandlePlayerChanged;
+                // Unsubscribe from other events
+            }
+        }
+
+        private void HandlePlayerChanged(IPlayer player)
+        {
+            // Update UI elements related to the current player
+            if (player != null)
+            {
+                UpdateGameUI();
+            }
+        }
+
+        private void UpdateGameState(GameState newState)
+        {
+            Debug.Log($"UIManager: Game state updated to {newState}");
             if (gameStateText == null) return;
 
             switch (newState)
             {
-                case GameState.WaitingToStart:  // Updated enum references
+                case GameState.WaitingToStart:
                     gameStateText.text = "Press Start to Begin";
                     if (startGameButton != null)
                     {
                         startGameButton.gameObject.SetActive(true);
                     }
                     break;
-                case GameState.PlayerTurn:  // Updated enum references
-                    gameStateText.text = "Your Turn";
+                case GameState.PlayerTurn:
+                    gameStateText.text = gameManager.CurrentPlayer.IsHuman ? "Your Turn" : $"{gameManager.CurrentPlayer.Name}'s Turn";
                     if (startGameButton != null)
                     {
                         startGameButton.gameObject.SetActive(false);
                     }
                     break;
-                case GameState.GameOver:  // Updated enum references
+                case GameState.GameOver:
                     ShowGameOverScreen();
                     break;
             }
 
-            // Call UpdateGameUI to refresh the UI based on the current game state
             UpdateGameUI();
         }
 
         private void StartNewGame()
         {
             Debug.Log("UIManager: Start button clicked");
-            if (GameManager.Instance != null)
+            if (gameManager != null)
             {
                 Debug.Log("UIManager: Starting new game through GameManager");
-                GameManager.Instance.StartNewGame();
+                gameManager.StartNewGame();
                 if (gameOverPanel != null)
                 {
                     gameOverPanel.SetActive(false);
@@ -130,16 +170,13 @@ namespace CardGame.UI
             }
             else
             {
-                Debug.LogError("UIManager: GameManager.Instance is null!");
+                Debug.LogError("UIManager: GameManager interface not available!");
             }
         }
 
         private void OnDestroy()
         {
-            if (GameManager.Instance != null)
-            {
-                GameManager.Instance.OnGameStateChanged -= UpdateGameState;
-            }
+            UnsubscribeFromEvents();
         }
     }
 }

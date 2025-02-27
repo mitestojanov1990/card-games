@@ -1,10 +1,7 @@
 using UnityEngine;
 using CardGame.Core;
-using CardGame.Core.Interfaces;
 using CardGame.Rules;
-using CardGame.Rules.Interfaces;
 using CardGame.UI;
-using CardGame.UI.Interfaces;
 
 namespace CardGame.DI
 {
@@ -12,20 +9,6 @@ namespace CardGame.DI
     {
         private static GameContainer instance;
         public static GameContainer Instance => instance;
-
-        private void Awake()
-        {
-            if (instance == null)
-            {
-                instance = this;
-                DontDestroyOnLoad(gameObject);
-                InitializeContainer();
-            }
-            else
-            {
-                Destroy(gameObject);
-            }
-        }
 
         private IDeck deck;
         private ICardRules cardRules;
@@ -37,30 +20,55 @@ namespace CardGame.DI
         public IUIManager UIManager => uiManager;
         public IGameManager GameManager => gameManager;
 
-        private void InitializeContainer()
+        private void Awake()
         {
-            // Initialize core systems
-            cardRules = CardGame.Rules.CardRules.Instance;
-            deck = new Deck();
+            if (instance == null)
+            {
+                instance = this;
+                DontDestroyOnLoad(gameObject);
+                
+                // Get references from GameSetup
+                var gameSetup = Object.FindAnyObjectByType<GameSetup>();
+                if (gameSetup == null)
+                {
+                    Debug.LogError("GameSetup not found! Make sure GameSetup is initialized first.");
+                    return;
+                }
 
-            // Initialize Unity components
-            var uiManagerObj = new GameObject("UIManager");
-            uiManagerObj.transform.SetParent(transform);
-            uiManager = uiManagerObj.AddComponent<UIManager>() as IUIManager;
+                // Get components from the scene
+                gameManager = Object.FindAnyObjectByType<GameManager>();
+                deck = Object.FindAnyObjectByType<Deck>();
+                uiManager = Object.FindAnyObjectByType<UIManager>();
+                cardRules = CardGame.Rules.CardRules.Instance;
 
-            var gameManagerObj = new GameObject("GameManager");
-            gameManagerObj.transform.SetParent(transform);
-            gameManager = gameManagerObj.AddComponent<GameManager>();
+                if (gameManager == null || deck == null || uiManager == null || cardRules == null)
+                {
+                    Debug.LogError("Required components not found! Make sure GameSetup has initialized everything.");
+                    return;
+                }
 
-            // Inject dependencies
-            InjectDependencies();
+                Debug.Log("GameContainer initialized with existing components");
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
         }
 
-        private void InjectDependencies()
+        private void Start()
         {
-            if (gameManager is GameManager gm)
+            // Start the simulation if we have all components
+            if (gameManager != null && deck != null && uiManager != null && cardRules != null)
             {
-                gm.Initialize(deck, cardRules, uiManager);
+                try
+                {
+                    gameManager.InitializeSimulation(3, 0.5f, true);
+                    Debug.Log("Simulation started through GameContainer");
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogError($"Failed to start simulation: {ex.Message}");
+                }
             }
         }
     }

@@ -4,7 +4,7 @@ using System.Linq;
 using CardGame.Core;
 using CardGame.Players;
 using CardGame.Rules;
-using CardGame.Rules.Interfaces;
+using CardGame.Utils;
 
 namespace CardGame.UI
 {
@@ -44,6 +44,17 @@ namespace CardGame.UI
         private Text errorText;
         private float errorDisplayDuration = 5f;
 
+        private IGameManager gameManager;
+
+        private void Awake()
+        {
+            gameManager = GameManager.Instance as IGameManager;
+            if (gameManager == null)
+            {
+                Debug.LogError("Could not access IGameManager interface");
+            }
+        }
+
         private void Start()
         {
             CreateSimulationButton();
@@ -53,17 +64,13 @@ namespace CardGame.UI
             CreateReplayButton();
             CreateErrorPanel();
             
-            // Subscribe to game events
-            var gameManager = GameManager.Instance;
             if (gameManager != null)
             {
-                gameManager.OnGameStateChanged += HandleGameStateChanged;
-                gameManager.OnDrawCardsEffect += HandleDrawCardsEffect;
-                gameManager.OnSequentialPlayChanged += HandleSequentialPlayChanged;
-                gameManager.OnSuitDeclared += HandleSuitDeclared;
-                gameManager.OnSkipTurn += HandleSkipTurn;
-                gameManager.OnCardPlayed += HandleCardPlayed;
-                gameManager.OnCardDrawn += HandleCardDrawn;
+                SubscribeToEvents();
+            }
+            else
+            {
+                Debug.LogError("GameManager interface not available!");
             }
 
             SetupDrawAnimation();
@@ -72,6 +79,31 @@ namespace CardGame.UI
             // Subscribe to error events
             ErrorHandler.OnError += HandleError;
             ErrorHandler.OnWarning += HandleWarning;
+        }
+
+        private void SubscribeToEvents()
+        {
+            gameManager.OnGameStateChanged += HandleGameStateChanged;
+            gameManager.OnDrawCardsEffect += HandleDrawCardsEffect;
+            gameManager.OnSequentialPlayChanged += HandleSequentialPlayChanged;
+            gameManager.OnSuitDeclared += HandleSuitDeclared;
+            gameManager.OnSkipTurn += HandleSkipTurn;
+            gameManager.OnCardPlayed += HandleCardPlayed;
+            gameManager.OnCardDrawn += HandleCardDrawn;
+        }
+
+        private void UnsubscribeFromEvents()
+        {
+            if (gameManager != null)
+            {
+                gameManager.OnGameStateChanged -= HandleGameStateChanged;
+                gameManager.OnDrawCardsEffect -= HandleDrawCardsEffect;
+                gameManager.OnSequentialPlayChanged -= HandleSequentialPlayChanged;
+                gameManager.OnSuitDeclared -= HandleSuitDeclared;
+                gameManager.OnSkipTurn -= HandleSkipTurn;
+                gameManager.OnCardPlayed -= HandleCardPlayed;
+                gameManager.OnCardDrawn -= HandleCardDrawn;
+            }
         }
 
         private void CreateSimulationButton()
@@ -165,21 +197,17 @@ namespace CardGame.UI
 
         private void StartSimulation()
         {
-            var gameManager = GameManager.Instance;
             if (gameManager != null)
             {
                 gameManager.InitializeSimulation(3, 0.5f, true);
-                
-                // Subscribe to statistics updates
-                GameManager.Instance.OnGameStateChanged += HandleGameStateChanged;
             }
         }
 
-        private void HandleGameStateChanged(GameManager.GameState state)
+        private void HandleGameStateChanged(GameState state)
         {
-            if (state == GameManager.GameState.GameOver)
+            if (state == GameState.GameOver)
             {
-                var winner = GameManager.Instance.Players.FirstOrDefault(p => p.Hand.Count == 0);
+                var winner = gameManager.Players.FirstOrDefault(p => p.Hand.Count == 0);
                 if (winner != null)
                 {
                     ShowNotification($"Game Over!\n{winner.Name} wins!", 0f); // Don't auto-hide
@@ -187,7 +215,7 @@ namespace CardGame.UI
                 else
                 {
                     // Handle deck empty case
-                    var winnerByCards = GameManager.Instance.Players.OrderBy(p => p.Hand.Count).First();
+                    var winnerByCards = gameManager.Players.OrderBy(p => p.Hand.Count).First();
                     ShowNotification($"Game Over - Deck empty!\n{winnerByCards.Name} wins with fewest cards!", 0f);
                 }
                 
@@ -220,8 +248,7 @@ namespace CardGame.UI
 
         private string FormatStatsText()
         {
-            var gameManager = GameManager.Instance;
-            var gameOverText = gameManager.CurrentState == GameManager.GameState.GameOver ? 
+            var gameOverText = gameManager.CurrentState == GameState.GameOver ? 
                 "<color=yellow>Game Over!</color>\n\n" : "";
 
             return $"<size=32><b>Game Statistics</b></size>\n\n" +
@@ -339,7 +366,6 @@ namespace CardGame.UI
 
         private void RestartGame()
         {
-            var gameManager = GameManager.Instance;
             if (gameManager != null)
             {
                 // Hide UI elements
@@ -348,7 +374,7 @@ namespace CardGame.UI
                 if (drawCountPanel != null) drawCountPanel.SetActive(false);
                 
                 // Start new game with same settings
-                if (gameManager.CurrentState == GameManager.GameState.GameOver)
+                if (gameManager.CurrentState == GameState.GameOver)
                 {
                     gameManager.StartNewGame();
                 }
@@ -371,7 +397,7 @@ namespace CardGame.UI
             }
         }
 
-        private void HandleCardPlayed(Card card, Player player)
+        private void HandleCardPlayed(ICard card, IPlayer player)
         {
             // Get card position based on player
             Vector2 startPos;
@@ -382,22 +408,27 @@ namespace CardGame.UI
             else
             {
                 // Position based on player index
-                int playerIndex = GameManager.Instance.GetPlayerIndex(player);
-                float angle = (playerIndex * 360f / GameManager.Instance.Players.Count) * Mathf.Deg2Rad;
+                var players = gameManager.Players;
+                int playerIndex = players.ToList().IndexOf(player);
+                float angle = (playerIndex * 360f / players.Count) * Mathf.Deg2Rad;
                 startPos = new Vector2(
                     Screen.width * 0.5f + Mathf.Cos(angle) * 300f,
                     Screen.height * 0.5f + Mathf.Sin(angle) * 200f
                 );
             }
 
-            bool isSpecial = CardRules.Instance.GetCardEffect(card) != SpecialEffect.None;
-            playAnimation.QueueCardPlay(card, startPos, isSpecial);
-
-            // Clear draw notifications if a counter card was played
-            if (GameManager.Instance.CurrentDrawAmount == 0)
+            var concreteCard = card as Card;
+            if (concreteCard != null)
             {
-                drawCountPanel.SetActive(false);
-                HideNotification();
+                bool isSpecial = CardRules.Instance.GetCardEffect(concreteCard) != SpecialEffect.None;
+                playAnimation.QueueCardPlay(concreteCard, startPos, isSpecial);
+
+                // Clear draw notifications if a counter card was played
+                if (gameManager.CurrentDrawAmount == 0)
+                {
+                    drawCountPanel.SetActive(false);
+                    HideNotification();
+                }
             }
         }
 
@@ -462,11 +493,15 @@ namespace CardGame.UI
             playAnimation.Initialize(discardPos);
         }
 
-        private void HandleCardDrawn(Card card, Player player)
+        private void HandleCardDrawn(ICard card, IPlayer player)
         {
             if (player.IsHuman)
             {
-                drawAnimation.QueueCardDraw(card);
+                var concreteCard = card as Card;
+                if (concreteCard != null)
+                {
+                    drawAnimation.QueueCardDraw(concreteCard);
+                }
             }
         }
 
@@ -533,16 +568,7 @@ namespace CardGame.UI
 
         private void OnDestroy()
         {
-            if (GameManager.Instance != null)
-            {
-                GameManager.Instance.OnGameStateChanged -= HandleGameStateChanged;
-                GameManager.Instance.OnDrawCardsEffect -= HandleDrawCardsEffect;
-                GameManager.Instance.OnSequentialPlayChanged -= HandleSequentialPlayChanged;
-                GameManager.Instance.OnSuitDeclared -= HandleSuitDeclared;
-                GameManager.Instance.OnSkipTurn -= HandleSkipTurn;
-                GameManager.Instance.OnCardPlayed -= HandleCardPlayed;
-                GameManager.Instance.OnCardDrawn -= HandleCardDrawn;
-            }
+            UnsubscribeFromEvents();
             ErrorHandler.OnError -= HandleError;
             ErrorHandler.OnWarning -= HandleWarning;
         }

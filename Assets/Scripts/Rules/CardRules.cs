@@ -3,6 +3,7 @@ using CardGame.Core;
 using CardGame.Exceptions;
 using CardGame.Utils;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace CardGame.Rules
 {
@@ -10,17 +11,39 @@ namespace CardGame.Rules
     {
         bool CanPlayOnTop(ICard playedCard, ICard topCard, bool isSequentialPlay, string declaredSuit);
         bool IsDrawCardCounter(ICard playedCard, ICard topCard);
-        bool IsPopCupCounter(ICard card, ICard previousCard);
+        bool IsPopCupCounter(ICard card, ICard topCard);
         SpecialEffect GetCardEffect(ICard card);
         int GetDrawAmount(ICard card);
         bool RequiresSuitDeclaration(ICard card);
         bool AllowsExtraTurn(ICard card, int playerCount);
+        bool IsValidPlay(ICard card, ICard topCard, string declaredSuit, bool isSequentialPlay);
     }
+
     public class CardRules : ICardRules
     {
-        private static readonly CardRules instance = new CardRules();
-        public static CardRules Instance => instance;
-        private CardRules() { }
+        private static CardRules instance;
+        public static CardRules Instance
+        {
+            get
+            {
+                if (instance == null)
+                {
+                    instance = new CardRules();
+                }
+                return instance;
+            }
+        }
+
+        private readonly Dictionary<string, SpecialEffect> specialCards = new Dictionary<string, SpecialEffect>
+        {
+            {"2", SpecialEffect.DrawTwo},
+            {"3", SpecialEffect.DrawThree},
+            {"K", SpecialEffect.PopCup},
+            {"Q", SpecialEffect.PopCup},  // Queen counters King
+            {"J", SpecialEffect.SkipTurn},
+            {"A", SpecialEffect.ChangeSuit},
+            {"7", SpecialEffect.Sequential}
+        };
 
         public bool CanPlayOnTop(ICard playedCard, ICard topCard, bool isSequentialPlay, string declaredSuit)
         {
@@ -68,46 +91,31 @@ namespace CardGame.Rules
             return false;
         }
 
-        public bool IsPopCupCounter(ICard card, ICard previousCard)
+        public bool IsPopCupCounter(ICard card, ICard topCard)
         {
-            return previousCard.Rank == "King" && previousCard.Suit == "♥" &&
-                   card.Rank == "Queen" && card.Suit == "♥";
+            if (card == null || topCard == null) return false;
+
+            // Queen counters King's pop cup effect
+            return topCard.Rank == "K" && card.Rank == "Q";
         }
 
         public SpecialEffect GetCardEffect(ICard card)
         {
-            switch (card.Rank)
-            {
-                case "2":
-                    return SpecialEffect.DrawTwo;
-                case "3":
-                    return SpecialEffect.DrawThree;
-                case "9":
-                    return SpecialEffect.Sequential;
-                case "Jack":
-                    return SpecialEffect.ChangeSuit;
-                case "King":
-                    return card.Suit == "♥" ? SpecialEffect.PopCup : SpecialEffect.None;
-                case "Ace":
-                    return SpecialEffect.SkipTurn;
-                default:
-                    return SpecialEffect.None;
-            }
+            if (card == null) return SpecialEffect.None;
+            return specialCards.TryGetValue(card.Rank, out SpecialEffect effect) ? effect : SpecialEffect.None;
         }
 
         public int GetDrawAmount(ICard card)
         {
-            if (card == null)
-                throw new GameValidationException("Cannot get draw amount for null card");
-
-            switch (card.Rank)
+            if (card == null) return 0;
+            
+            var effect = GetCardEffect(card);
+            switch (effect)
             {
-                case "2":
+                case SpecialEffect.DrawTwo:
                     return 2;
-                case "3":
+                case SpecialEffect.DrawThree:
                     return 3;
-                case "King":
-                    return card.Suit == "♥" ? 5 : 0;
                 default:
                     return 0;
             }
@@ -121,6 +129,26 @@ namespace CardGame.Rules
         public bool AllowsExtraTurn(ICard card, int playerCount)
         {
             return card.Rank == "Ace" && playerCount == 2;
+        }
+
+        public bool IsValidPlay(ICard card, ICard topCard, string declaredSuit, bool isSequentialPlay)
+        {
+            if (card == null || topCard == null) return false;
+
+            // Check if it's a sequential play (must match rank)
+            if (isSequentialPlay)
+            {
+                return card.Rank == topCard.Rank;
+            }
+
+            // Check if suit matches declared suit
+            if (!string.IsNullOrEmpty(declaredSuit))
+            {
+                return card.Suit == declaredSuit || card.Rank == topCard.Rank;
+            }
+
+            // Normal play - match suit or rank
+            return card.Suit == topCard.Suit || card.Rank == topCard.Rank;
         }
 
         private void ValidatePlayRules(ICard playedCard, ICard topCard, string declaredSuit)

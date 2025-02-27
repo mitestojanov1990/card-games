@@ -4,11 +4,13 @@ using System.Collections;
 using System.Collections.Generic;
 using CardGame.Core;
 using CardGame.Rules;
+using CardGame.Utils;
 
 namespace CardGame.UI
 {
     public class CardPlayAnimation : MonoBehaviour
     {
+        private ICardRules cardRules;
         private float cardMoveSpeed = 1200f;
         private float cardRotateSpeed = 720f;
         private Vector2 discardPosition;
@@ -37,6 +39,7 @@ namespace CardGame.UI
         public void Initialize(Vector2 discardPos)
         {
             discardPosition = discardPos;
+            cardRules = CardRules.Instance;
         }
 
         public void QueueCardPlay(Card card, Vector2 startPos, bool isSpecialEffect = false)
@@ -122,19 +125,19 @@ namespace CardGame.UI
 
         private Color GetSpecialEffectColor(Card card)
         {
-            var effect = CardRules.GetCardEffect(card);
+            var effect = cardRules.GetCardEffect(card);
             switch (effect)
             {
-                case CardRules.SpecialEffect.DrawTwo:
-                case CardRules.SpecialEffect.DrawThree:
+                case SpecialEffect.DrawTwo:
+                case SpecialEffect.DrawThree:
                     return specialEffectColors[0];
-                case CardRules.SpecialEffect.Sequential:
+                case SpecialEffect.Sequential:
                     return specialEffectColors[1];
-                case CardRules.SpecialEffect.ChangeSuit:
+                case SpecialEffect.ChangeSuit:
                     return specialEffectColors[2];
-                case CardRules.SpecialEffect.SkipTurn:
+                case SpecialEffect.SkipTurn:
                     return specialEffectColors[3];
-                case CardRules.SpecialEffect.PopCup:
+                case SpecialEffect.PopCup:
                     return specialEffectColors[4];
                 default:
                     return Color.white;
@@ -143,20 +146,20 @@ namespace CardGame.UI
 
         private string GetEffectDescription(Card card)
         {
-            var effect = CardRules.GetCardEffect(card);
+            var effect = cardRules.GetCardEffect(card);
             switch (effect)
             {
-                case CardRules.SpecialEffect.DrawTwo:
+                case SpecialEffect.DrawTwo:
                     return "+2";
-                case CardRules.SpecialEffect.DrawThree:
+                case SpecialEffect.DrawThree:
                     return "+3";
-                case CardRules.SpecialEffect.Sequential:
+                case SpecialEffect.Sequential:
                     return "Sequential";
-                case CardRules.SpecialEffect.ChangeSuit:
+                case SpecialEffect.ChangeSuit:
                     return "Change Suit";
-                case CardRules.SpecialEffect.SkipTurn:
+                case SpecialEffect.SkipTurn:
                     return "Skip";
-                case CardRules.SpecialEffect.PopCup:
+                case SpecialEffect.PopCup:
                     return "+5";
                 default:
                     return "";
@@ -271,9 +274,9 @@ namespace CardGame.UI
                 // Rotate while moving
                 float currentRotation = t * cardRotateSpeed;
 
-                RectTransform rt = cardObj.GetComponent<RectTransform>();
-                rt.position = currentPos;
-                rt.rotation = Quaternion.Euler(0, 0, currentRotation);
+                RectTransform rtIn = cardObj.GetComponent<RectTransform>();
+                rtIn.position = currentPos;
+                rtIn.rotation = Quaternion.Euler(0, 0, currentRotation);
 
                 yield return null;
             }

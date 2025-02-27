@@ -14,6 +14,7 @@ namespace CardGame.Players
         string Name { get; }
         bool IsHuman { get; }
         IReadOnlyList<ICard> Hand { get; }
+        int Score { get; set; }
         void AddCard(ICard card);
         void RemoveCard(ICard card);
         void CheckMacau();
@@ -28,6 +29,7 @@ namespace CardGame.Players
         public IReadOnlyList<ICard> Hand => hand;
         public string Name { get; }
         public bool IsHuman { get; }
+        public int Score { get; set; }
 
         // CPU player strategy fields
         private bool hasDeclaredMacau = false;
@@ -41,6 +43,7 @@ namespace CardGame.Players
             IsHuman = isHuman;
             this.cardRules = cardRules;
             hand = new List<ICard>();
+            Score = 0;
         }
 
         private void ValidatePlayer(string name)

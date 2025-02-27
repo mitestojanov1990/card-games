@@ -8,7 +8,7 @@ using CardGame.UI;
 using CardGame.Utils;
 using CardGame.Exceptions;
 using System;
-using static CardGame.Core.GameManager;
+using UnityEngine.UI;
 
 namespace CardGame.Core
 {
@@ -16,6 +16,7 @@ namespace CardGame.Core
     {
         GameState CurrentState { get; }
         IPlayer CurrentPlayer { get; }
+        IReadOnlyList<IPlayer> Players { get; }
         int PlayerCount { get; }
         bool IsSequentialPlayActive { get; }
         int TurnCount { get; }
@@ -47,22 +48,14 @@ namespace CardGame.Core
     public class GameManager : MonoBehaviour, IGameManager
     {
         public static GameManager Instance { get; private set; }
-
-        public enum GameState
-        {
-            WaitingToStart,
-            PlayerTurn,
-            GameOver
-        }
-
         public GameState CurrentState { get; private set; }
         private Deck deck;
         private Card topDiscard;
         private List<Card> playerHand = new List<Card>();
         public System.Action<Card> OnCardDiscarded;
-        public System.Action<GameState> OnGameStateChanged;
         public int PlayerHandSize { get; private set; } = 7;
         public bool RequireInitialDiscard { get; private set; } = true;
+        public int PlayerCount { get; private set; }
 
         private int currentDrawAmount = 0;
         private bool isSequentialPlayActive = false;
@@ -72,27 +65,18 @@ namespace CardGame.Core
         private const int STOP_MACAU_PENALTY = 3;
         private const int INITIAL_HAND_SIZE = 6; // Rule: 6 cards are dealt
 
-        public System.Action<string> OnSuitDeclared;
-        public System.Action<int> OnDrawCardsEffect;
-        public System.Action OnSkipTurn;
-        public System.Action<bool> OnSequentialPlayChanged;
-        public System.Action<string> OnMacauCalled;
-        public System.Action<string> OnStopMacauCalled;
-
         private SuitSelector suitSelector;
 
         private List<Player> players = new List<Player>();
         private int currentPlayerIndex = 0;
-        public Player CurrentPlayer => players[currentPlayerIndex];
-        public System.Action<Player> OnPlayerChanged;
-        public int PlayerCount { get; private set; } = 3; // Default to 2 CPU + 1 human
+        public IPlayer CurrentPlayer => players[currentPlayerIndex];
 
         // Add new events
         public System.Action<Card, Player> OnCardPlayed;
         public System.Action<Card, Player> OnCardDrawn;
 
         // Add public accessor for players
-        public IReadOnlyList<Player> Players => players;
+        public IReadOnlyList<IPlayer> Players => players.Cast<IPlayer>().ToList();
 
         // Add method to get player index
         public int GetPlayerIndex(Player player)
@@ -116,6 +100,133 @@ namespace CardGame.Core
         private bool isDrawingMultipleCards = false;
         private int remainingCardsToDraw = 0;
 
+        // Add CardRules instance field
+        private ICardRules cardRules;
+
+        // Remove public event declarations that duplicate interface events
+        private event Action<GameState> OnGameStateChangedInternal;
+        private event Action<IPlayer> OnPlayerChangedInternal;
+        private event Action<ICard, IPlayer> OnCardPlayedInternal;
+        private event Action<ICard, IPlayer> OnCardDrawnInternal;
+        private event Action<string> OnSuitDeclaredInternal;
+        private event Action<int> OnDrawCardsEffectInternal;
+        private event Action OnSkipTurnInternal;
+        private event Action<bool> OnSequentialPlayChangedInternal;
+        private event Action<string> OnMacauCalledInternal;
+        private event Action<string> OnStopMacauCalledInternal;
+
+        // Implement interface events
+        event Action<GameState> IGameManager.OnGameStateChanged
+        {
+            add => OnGameStateChangedInternal += value;
+            remove => OnGameStateChangedInternal -= value;
+        }
+
+        event Action<IPlayer> IGameManager.OnPlayerChanged
+        {
+            add => OnPlayerChangedInternal += value;
+            remove => OnPlayerChangedInternal -= value;
+        }
+
+        event Action<ICard, IPlayer> IGameManager.OnCardPlayed
+        {
+            add => OnCardPlayedInternal += value;
+            remove => OnCardPlayedInternal -= value;
+        }
+
+        event Action<ICard, IPlayer> IGameManager.OnCardDrawn
+        {
+            add => OnCardDrawnInternal += value;
+            remove => OnCardDrawnInternal -= value;
+        }
+
+        event Action<string> IGameManager.OnSuitDeclared
+        {
+            add => OnSuitDeclaredInternal += value;
+            remove => OnSuitDeclaredInternal -= value;
+        }
+
+        event Action<int> IGameManager.OnDrawCardsEffect
+        {
+            add => OnDrawCardsEffectInternal += value;
+            remove => OnDrawCardsEffectInternal -= value;
+        }
+
+        event Action IGameManager.OnSkipTurn
+        {
+            add => OnSkipTurnInternal += value;
+            remove => OnSkipTurnInternal -= value;
+        }
+
+        event Action<bool> IGameManager.OnSequentialPlayChanged
+        {
+            add => OnSequentialPlayChangedInternal += value;
+            remove => OnSequentialPlayChangedInternal -= value;
+        }
+
+        event Action<string> IGameManager.OnMacauCalled
+        {
+            add => OnMacauCalledInternal += value;
+            remove => OnMacauCalledInternal -= value;
+        }
+
+        event Action<string> IGameManager.OnStopMacauCalled
+        {
+            add => OnStopMacauCalledInternal += value;
+            remove => OnStopMacauCalledInternal -= value;
+        }
+
+        // Update event invocations throughout the code
+        private void RaiseGameStateChanged(GameState state)
+        {
+            OnGameStateChangedInternal?.Invoke(state);
+        }
+
+        private void RaisePlayerChanged(IPlayer player)
+        {
+            OnPlayerChangedInternal?.Invoke(player);
+        }
+
+        private void RaiseCardPlayed(ICard card, IPlayer player)
+        {
+            OnCardPlayedInternal?.Invoke(card, player);
+        }
+
+        private void RaiseCardDrawn(ICard card, IPlayer player)
+        {
+            OnCardDrawnInternal?.Invoke(card, player);
+        }
+
+        private void RaiseSuitDeclared(string suit)
+        {
+            OnSuitDeclaredInternal?.Invoke(suit);
+        }
+
+        private void RaiseDrawCardsEffect(int amount)
+        {
+            OnDrawCardsEffectInternal?.Invoke(amount);
+        }
+
+        private void RaiseSkipTurn()
+        {
+            OnSkipTurnInternal?.Invoke();
+        }
+
+        private void RaiseSequentialPlayChanged(bool active)
+        {
+            OnSequentialPlayChangedInternal?.Invoke(active);
+        }
+
+        private void RaiseMacauCalled(string playerName)
+        {
+            OnMacauCalledInternal?.Invoke(playerName);
+        }
+
+        private void RaiseStopMacauCalled(string message)
+        {
+            OnStopMacauCalledInternal?.Invoke(message);
+        }
+
         private void Awake()
         {
             if (Instance == null)
@@ -131,81 +242,152 @@ namespace CardGame.Core
 
         private void Start()
         {
+            Debug.Log("GameManager: Start called");
+            // Log the initial state
+            Debug.Log($"Initial Game State: {CurrentState}");
+
             // Set initial state to WaitingToStart
             CurrentState = GameState.WaitingToStart;
-            OnGameStateChanged?.Invoke(CurrentState);
+            RaiseGameStateChanged(CurrentState);
 
-            // Create suit selector
-            GameObject suitSelectorObj = new GameObject("SuitSelector", typeof(RectTransform));
-            suitSelectorObj.transform.SetParent(FindFirstObjectByType<Canvas>().transform, false);
-            suitSelector = suitSelectorObj.AddComponent<SuitSelector>();
-            suitSelector.gameObject.SetActive(false);
+            // Initialize UI components
+            InitializeSuitSelector();
+            InitializeSimulationUI();
+        }
 
-            // Add simulation UI
-            GameObject simUIObj = new GameObject("SimulationUI");
-            simUIObj.transform.SetParent(FindFirstObjectByType<Canvas>().transform, false);
-            simUIObj.AddComponent<SimulationUI>();
+        private void InitializeSuitSelector()
+        {
+            try
+            {
+                // Find or create canvas
+                Canvas canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
+                if (canvas == null)
+                {
+                    GameObject canvasObj = new GameObject("GameCanvas");
+                    canvas = canvasObj.AddComponent<Canvas>();
+                    canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                    canvasObj.AddComponent<CanvasScaler>();
+                    canvasObj.AddComponent<GraphicRaycaster>();
+                    DontDestroyOnLoad(canvasObj);
+                }
+
+                // Create suit selector if it doesn't exist
+                if (suitSelector == null)
+                {
+                    GameObject selectorObj = new GameObject("SuitSelector");
+                    selectorObj.transform.SetParent(canvas.transform, false);
+                    
+                    // Add required components
+                    RectTransform rt = selectorObj.AddComponent<RectTransform>();
+                    rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+                    rt.pivot = new Vector2(0.5f, 0.5f);
+                    
+                    suitSelector = selectorObj.AddComponent<SuitSelector>();
+                    
+                    // Initialize after all components are added
+                    suitSelector.Initialize();
+                    suitSelector.gameObject.SetActive(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                ErrorHandler.HandleException(ex, "Failed to initialize SuitSelector");
+            }
+        }
+
+        private void InitializeSimulationUI()
+        {
+            try
+            {
+                Canvas canvas = UnityEngine.Object.FindAnyObjectByType<Canvas>();
+                if (canvas != null)
+                {
+                    // Add simulation UI
+                    GameObject simUIObj = new GameObject("SimulationUI");
+                    simUIObj.transform.SetParent(canvas.transform, false);
+                    simUIObj.AddComponent<SimulationUI>();
+                }
+            }
+            catch (Exception ex)
+            {
+                ErrorHandler.HandleException(ex, "Failed to initialize SimulationUI");
+            }
         }
 
         public void InitializeSimulation(int playerCount, float delay, bool logging)
         {
-            ValidateSimulationParams(playerCount, delay);
+            try
+            {
+                Debug.Log($"Initializing simulation with {playerCount} players");
+                
+                // Store simulation settings
+                this.PlayerCount = playerCount;
+                this.detailedLogging = logging;
+                this.simulationDelay = delay;
+                this.isSimulation = true;
 
-            isSimulation = true;
-            simulationDelay = delay;
-            detailedLogging = logging;
-            PlayerCount = playerCount;
-            StartNewGame();
+                // Clear existing players
+                players.Clear();
+                currentPlayerIndex = 0;
+
+                // Create players
+                InitializePlayers(playerCount);
+
+                // Initialize game state
+                CurrentState = GameState.WaitingToStart;
+                isSequentialPlayActive = false;
+                currentDrawAmount = 0;
+                declaredSuit = null;
+                turnCount = 1;
+
+                // Reset deck without reinitializing
+                if (deck != null)
+                {
+                    // Clear all cards and reinitialize only if empty
+                    if (deck.RemainingCards == 0)
+                    {
+                        deck.Initialize();
+                    }
+                    else
+                    {
+                        deck.Shuffle(); // Just shuffle if already initialized
+                    }
+                }
+
+                // Deal initial cards
+                DealInitialHands();
+
+                // Start the game
+                StartNewGame();
+
+                Debug.Log("Simulation initialized successfully");
+            }
+            catch (System.Exception ex)
+            {
+                ErrorHandler.HandleException(ex, "Failed to initialize simulation");
+                throw;
+            }
         }
 
-        private void ValidateSimulationParams(int playerCount, float delay)
+        private void InitializePlayers(int playerCount)
         {
-            if (playerCount < 2)
-                throw new GameValidationException("Must have at least 2 players");
-            if (playerCount > 6)
-                throw new GameValidationException("Maximum 6 players allowed");
-            if (delay < 0)
-                throw new GameValidationException("Delay cannot be negative");
+            Debug.Log($"Initializing {playerCount} players");
+            for (int i = 0; i < playerCount; i++)
+            {
+                string playerName = i == 0 ? "Player" : $"CPU {i}";
+                bool isHuman = i == 0;
+                var player = new Player(playerName, isHuman, cardRules);
+                players.Add(player);
+            }
         }
 
-        public void StartNewGame()
+        private void DealInitialHands()
         {
-            GameLogger.Instance.LogGameEvent("GameStarted", new Dictionary<string, object>
-            {
-                { "PlayerCount", PlayerCount },
-                { "IsSimulation", isSimulation }
-            });
-
-            ValidateGameState(GameState.PlayerTurn);
-            ValidateNewGame();
-
-            Debug.Log($"Starting new game (Simulation: {isSimulation})");
-            deck = new Deck();
-
-            // Create players
-            players.Clear();
-            if (isSimulation)
-            {
-                for (int i = 0; i < PlayerCount; i++)
-                {
-                    players.Add(new Player($"CPU {i + 1}", false));
-                }
-            }
-            else
-            {
-                players.Add(new Player("You", true));
-                for (int i = 1; i < PlayerCount; i++)
-                {
-                    players.Add(new Player($"CPU {i}", false));
-                }
-            }
-
-            // Deal 6 cards to each player
-            foreach (Player player in players)
+            foreach (var player in players)
             {
                 for (int i = 0; i < INITIAL_HAND_SIZE; i++)
                 {
-                    Card card = DrawCard();
+                    var card = DrawCard();
                     if (card != null)
                     {
                         player.AddCard(card);
@@ -213,21 +395,52 @@ namespace CardGame.Core
                 }
             }
 
-            // Turn up first card
-            topDiscard = DrawCard();
-            OnCardDiscarded?.Invoke(topDiscard);
+            // Draw first card for discard pile
+            var firstDiscard = DrawCard() as Card;
+            if (firstDiscard != null)
+            {
+                topDiscard = firstDiscard;
+            }
+        }
 
-            // Initialize game state
-            currentPlayerIndex = 0;
-            CurrentState = GameState.PlayerTurn;
-            isSequentialPlayActive = false;
-            currentDrawAmount = 0;
-            declaredSuit = null;
-            hasCalledMacau = false;
-            canCallStopMacau = false;
+        public void StartNewGame()
+        {
+            Debug.Log("GameManager: Starting new game");
+            Debug.Log($"Current State before starting new game: {CurrentState}");
 
-            OnGameStateChanged?.Invoke(CurrentState);
-            OnPlayerChanged?.Invoke(CurrentPlayer);
+            try
+            {
+                // Reset game state if needed
+                if (CurrentState == GameState.GameOver)
+                {
+                    deck.Initialize();
+                    foreach (var player in players)
+                    {
+                        var playerHand = player.Hand.ToList();
+                        foreach (var card in playerHand)
+                        {
+                            player.RemoveCard(card);
+                        }
+                    }
+                    DealInitialHands();
+                }
+
+                // Set game state to player turn
+                CurrentState = GameState.PlayerTurn;
+                RaiseGameStateChanged(CurrentState);
+                RaisePlayerChanged(CurrentPlayer);
+
+                // Start CPU turn if first player is CPU
+                if (!CurrentPlayer.IsHuman)
+                {
+                    PlayCPUTurn();
+                }
+            }
+            catch (System.Exception ex)
+            {
+                ErrorHandler.HandleException(ex, "Failed to start new game");
+                throw;
+            }
         }
 
         private void ValidateGameState(GameState newState)
@@ -269,16 +482,22 @@ namespace CardGame.Core
                 throw new GameValidationException("Invalid player index");
         }
 
-        public Card DrawCard()
+        public ICard DrawCard()
         {
-            if (deck == null)
+            try
             {
-                Debug.LogError("Deck is null!");
+                if (deck == null)
+                    throw new GameValidationException("Deck not initialized");
+
+                ICard card = deck.DrawCard();
+                RaiseCardDrawn(card, CurrentPlayer);
+                return card;
+            }
+            catch (GameValidationException ex)
+            {
+                ErrorHandler.HandleException(ex, "DrawCard");
                 return null;
             }
-            Card card = deck.DrawCard();
-            Debug.Log($"Drew card: {(card != null ? card.Rank + card.Suit : "null")}");  // Add debug
-            return card;
         }
 
         public void DiscardCard(Card card)
@@ -294,10 +513,10 @@ namespace CardGame.Core
             // Check if countering draw cards effect
             if (currentDrawAmount > 0)
             {
-                return CardRules.IsDrawCardCounter(card, topDiscard);
+                return cardRules.IsDrawCardCounter(card, topDiscard);
             }
 
-            return CardRules.CanPlayOnTop(card, topDiscard, isSequentialPlayActive, declaredSuit);
+            return cardRules.CanPlayOnTop(card, topDiscard, isSequentialPlayActive, declaredSuit);
         }
 
         public void HandleCardDraw()
@@ -336,16 +555,14 @@ namespace CardGame.Core
 
         private void DrawSingleCard()
         {
-            Card drawnCard = DrawCard();
+            var drawnCard = DrawCard() as Card;
             if (drawnCard != null)
             {
-                OnCardDrawn?.Invoke(drawnCard, CurrentPlayer);
+                RaiseCardDrawn(drawnCard, CurrentPlayer);
                 CurrentPlayer.AddCard(drawnCard);
 
-                // Check if drawn card can be played
                 if (IsValidPlay(drawnCard))
                 {
-                    // Player can still play this card
                     return;
                 }
                 NextTurn();
@@ -357,7 +574,7 @@ namespace CardGame.Core
             isDrawingMultipleCards = true;
             remainingCardsToDraw = currentDrawAmount;
             currentDrawAmount = 0; // Reset so the effect is cleared
-            OnDrawCardsEffect?.Invoke(0); // Clear UI notification
+            RaiseDrawCardsEffect(0); // Clear UI notification
             DrawMultipleCards();
         }
 
@@ -365,52 +582,58 @@ namespace CardGame.Core
         {
             while (remainingCardsToDraw > 0)
             {
-                Card drawnCard = DrawCard();
+                var drawnCard = DrawCard() as Card;
                 if (drawnCard != null)
                 {
-                    OnCardDrawn?.Invoke(drawnCard, CurrentPlayer);
+                    RaiseCardDrawn(drawnCard, CurrentPlayer);
                     CurrentPlayer.AddCard(drawnCard);
                     remainingCardsToDraw--;
                 }
                 else
                 {
-                    break; // No more cards in deck
+                    break;
                 }
             }
 
             // After drawing all required cards, check if player can play
-            Card playableCard = CurrentPlayer.Hand.FirstOrDefault(IsValidPlay);
+            var currentPlayerHand = (CurrentPlayer as Player)?.Hand;
+            var playableCard = currentPlayerHand?.FirstOrDefault(c => IsValidPlay(c as Card)) as Card;
+            
             if (playableCard == null)
             {
                 // Draw one more card to check if it can be played
-                Card extraCard = DrawCard();
+                var extraCard = DrawCard() as Card;
                 if (extraCard != null)
                 {
-                    OnCardDrawn?.Invoke(extraCard, CurrentPlayer);
+                    RaiseCardDrawn(extraCard, CurrentPlayer);
                     CurrentPlayer.AddCard(extraCard);
 
                     if (!IsValidPlay(extraCard))
                     {
-                        // If can't play the extra card, end turn
                         isDrawingMultipleCards = false;
                         NextTurn();
                     }
                 }
                 else
                 {
-                    // No more cards to draw, end turn
                     isDrawingMultipleCards = false;
                     NextTurn();
                 }
             }
-            // If player has a playable card, they can play it (turn continues)
         }
 
-        public void PlayCard(Card card, Player player)
+        public void PlayCard(ICard card, IPlayer player)
         {
             try
             {
-                ValidatePlayCard(card, player);
+                var concreteCard = card as Card;
+                var concretePlayer = player as Player;
+                if (concreteCard == null || concretePlayer == null)
+                {
+                    throw new GameValidationException("Invalid card or player type");
+                }
+
+                ValidatePlayCard(concreteCard, concretePlayer);
 
                 var parameters = new Dictionary<string, object>
                 {
@@ -421,11 +644,11 @@ namespace CardGame.Core
                 GameLogger.Instance.LogGameEvent("CardPlayed", parameters);
 
                 // Handle special effects
-                var effect = CardRules.GetCardEffect(card);
-                HandleSpecialEffect(effect, card, player);
+                var effect = cardRules.GetCardEffect(card);
+                HandleSpecialEffect(effect, concreteCard, concretePlayer);
 
-                DiscardCard(card);
-                OnCardPlayed?.Invoke(card, player);
+                DiscardCard(concreteCard);
+                RaiseCardPlayed(card, player);
 
                 CheckWinCondition(player);
             }
@@ -457,15 +680,15 @@ namespace CardGame.Core
                 {
                     case SpecialEffect.DrawTwo:
                     case SpecialEffect.DrawThree:
-                        currentDrawAmount += CardRules.GetDrawAmount(card);
-                        OnDrawCardsEffect?.Invoke(currentDrawAmount);
+                        currentDrawAmount += cardRules.GetDrawAmount(card);
+                        RaiseDrawCardsEffect(currentDrawAmount);
                         break;
 
                     case SpecialEffect.PopCup:
-                        if (!CardRules.IsPopCupCounter(card, topDiscard))
+                        if (!cardRules.IsPopCupCounter(card, topDiscard))
                         {
                             currentDrawAmount = 5;
-                            OnDrawCardsEffect?.Invoke(currentDrawAmount);
+                            RaiseDrawCardsEffect(currentDrawAmount);
                         }
                         else
                         {
@@ -481,6 +704,7 @@ namespace CardGame.Core
                             // In 2-player game, current player gets another turn
                             currentPlayerIndex = (currentPlayerIndex - 1 + players.Count) % players.Count;
                         }
+                        RaiseSkipTurn();
                         break;
 
                     case SpecialEffect.ChangeSuit:
@@ -492,13 +716,13 @@ namespace CardGame.Core
                         {
                             // CPU chooses most common suit in hand
                             declaredSuit = player.GetMostCommonSuit();
-                            OnSuitDeclared?.Invoke(declaredSuit);
+                            RaiseSuitDeclared(declaredSuit);
                         }
                         break;
 
                     case SpecialEffect.Sequential:
                         isSequentialPlayActive = true;
-                        OnSequentialPlayChanged?.Invoke(true);
+                        RaiseSequentialPlayChanged(true);
                         break;
                 }
             }
@@ -525,29 +749,30 @@ namespace CardGame.Core
                 throw new GameValidationException("Invalid card play");
         }
 
-        public void CallMacau(Player player)
+        public void CallMacau(IPlayer player)
         {
             if (player.Hand.Count == 1 && !hasCalledMacau)
             {
                 hasCalledMacau = true;
-                OnMacauCalled?.Invoke(player.Name);
+                RaiseMacauCalled(player.Name);
             }
         }
 
-        public void CallStopMacau(Player caller, Player target)
+        public void CallStopMacau(IPlayer caller, IPlayer target)
         {
-            if (canCallStopMacau && target.Hand.Count == 1 && !hasCalledMacau)
+            var concreteTarget = target as Player;
+            if (canCallStopMacau && concreteTarget?.Hand.Count == 1 && !hasCalledMacau)
             {
-                OnStopMacauCalled?.Invoke($"{caller.Name} caught {target.Name} not calling Macau!");
-                ForcePlayerDraw(target, STOP_MACAU_PENALTY);
+                RaiseStopMacauCalled($"{caller.Name} caught {target.Name} not calling Macau!");
+                ForcePlayerDraw(concreteTarget, STOP_MACAU_PENALTY);
             }
         }
 
-        private void ForcePlayerDraw(Player player, int amount)
+        private void ForcePlayerDraw(IPlayer player, int amount)
         {
             for (int i = 0; i < amount; i++)
             {
-                Card card = DrawCard();
+                var card = DrawCard() as Card;
                 if (card != null)
                 {
                     player.AddCard(card);
@@ -558,29 +783,29 @@ namespace CardGame.Core
         public void CheckGameEnd()
         {
             // Check if any player has won
-            foreach (Player player in players)
+            foreach (var player in players)
             {
                 if (player.Hand.Count == 0)
                 {
                     CurrentState = GameState.GameOver;
                     Debug.Log($"{player.Name} wins the game!");
-                    OnGameStateChanged?.Invoke(CurrentState);
+                    RaiseGameStateChanged(CurrentState);
                     return;
                 }
             }
 
             // Check if deck is empty and no one can play
-            if (deck.IsEmpty() && players.All(p => !p.Hand.Any(c => IsValidPlay(c))))
+            if (deck.IsEmpty() && players.All(p => !p.Hand.Any(c => IsValidPlay(c as Card))))
             {
                 CurrentState = GameState.GameOver;
                 // Find player with fewest cards
                 var winner = players.OrderBy(p => p.Hand.Count).First();
                 Debug.Log($"Game Over - Deck empty! {winner.Name} wins with fewest cards ({winner.Hand.Count})!");
-                OnGameStateChanged?.Invoke(CurrentState);
+                RaiseGameStateChanged(CurrentState);
             }
         }
 
-        public void AddCardToHand(Card card)
+        public void AddCardToHand(ICard card)
         {
             if (CurrentPlayer.IsHuman)
             {
@@ -588,7 +813,7 @@ namespace CardGame.Core
             }
         }
 
-        public void RemoveCardFromHand(Card card)
+        public void RemoveCardFromHand(ICard card)
         {
             if (CurrentPlayer.IsHuman)
             {
@@ -599,9 +824,8 @@ namespace CardGame.Core
         public void DeclareSuit(string suit)
         {
             ValidateSuitDeclaration(suit);
-
             declaredSuit = suit;
-            OnSuitDeclared?.Invoke(suit);
+            RaiseSuitDeclared(suit);
         }
 
         private void ValidateSuitDeclaration(string suit)
@@ -614,10 +838,13 @@ namespace CardGame.Core
 
         public void NextTurn()
         {
+            Debug.Log("GameManager: NextTurn called");
+            // Log the current player and state
+            Debug.Log($"Current Player: {CurrentPlayer.Name}, State: {CurrentState}");
             ValidateNextTurn();
             currentPlayerIndex = (currentPlayerIndex + 1) % players.Count;
             turnCount++;
-            OnPlayerChanged?.Invoke(CurrentPlayer);
+            RaisePlayerChanged(CurrentPlayer);
 
             if (!CurrentPlayer.IsHuman)
             {
@@ -644,11 +871,9 @@ namespace CardGame.Core
 
             yield return new WaitForSeconds(simulationDelay);
 
-            // Check for Macau
             CurrentPlayer.CheckMacau();
 
-            // Try to play a card
-            Card cardToPlay = CurrentPlayer.GetBestPlay(topDiscard, declaredSuit, isSequentialPlayActive);
+            var cardToPlay = CurrentPlayer.GetBestPlay(topDiscard, declaredSuit, isSequentialPlayActive) as Card;
 
             if (cardToPlay != null)
             {
@@ -658,13 +883,12 @@ namespace CardGame.Core
                 }
 
                 CurrentPlayer.RemoveCard(cardToPlay);
-                OnCardPlayed?.Invoke(cardToPlay, CurrentPlayer);
+                RaiseCardPlayed(cardToPlay, CurrentPlayer);
 
                 yield return new WaitForSeconds(simulationDelay);
 
                 PlayCard(cardToPlay, CurrentPlayer);
 
-                // Don't continue turn if game is over
                 if (CurrentState == GameState.GameOver)
                 {
                     yield break;
@@ -672,7 +896,7 @@ namespace CardGame.Core
             }
             else
             {
-                Card drawnCard = DrawCard();
+                var drawnCard = DrawCard() as Card;
                 if (drawnCard != null)
                 {
                     if (detailedLogging)
@@ -680,7 +904,7 @@ namespace CardGame.Core
                         Debug.Log($"{CurrentPlayer.Name} drew {drawnCard.Rank}{drawnCard.Suit}");
                     }
 
-                    OnCardDrawn?.Invoke(drawnCard, CurrentPlayer);
+                    RaiseCardDrawn(drawnCard, CurrentPlayer);
                     yield return new WaitForSeconds(simulationDelay);
                     CurrentPlayer.AddCard(drawnCard);
                 }
@@ -722,13 +946,13 @@ namespace CardGame.Core
             currentDrawAmount = 0;
 
             // Clear UI notifications
-            OnDrawCardsEffect?.Invoke(0);
+            RaiseDrawCardsEffect(0);
 
             // Log the reset
             ErrorHandler.LogWarning("Game state has been reset due to an error");
         }
 
-        private void CheckWinCondition(Player player)
+        private void CheckWinCondition(IPlayer player)
         {
             if (player.Hand.Count == 0)
             {
@@ -740,23 +964,64 @@ namespace CardGame.Core
                 });
 
                 CurrentState = GameState.GameOver;
-                OnGameStateChanged?.Invoke(CurrentState);
+                RaiseGameStateChanged(CurrentState);
             }
         }
 
         public void Initialize(IDeck deckInstance, ICardRules rulesInstance, IUIManager uiManagerInstance)
         {
-            // Store references to injected dependencies
-            this.deck = deckInstance as Deck;
+            try
+            {
+                if (deckInstance == null)
+                    throw new ArgumentNullException(nameof(deckInstance));
+                if (rulesInstance == null)
+                    throw new ArgumentNullException(nameof(rulesInstance));
 
-            // Additional initialization logic as needed
-            Debug.Log("GameManager initialized with dependencies");
+                // Store references to injected dependencies
+                this.cardRules = rulesInstance;
 
-            // You might want to set up event handlers or other initialization here
+                // Check if deckInstance is already a Deck component
+                var existingDeck = deckInstance as Deck;
+                if (existingDeck != null)
+                {
+                    this.deck = existingDeck;
+                }
+                else
+                {
+                    // Find existing deck or create new one
+                    this.deck = UnityEngine.Object.FindAnyObjectByType<Deck>();
+                    if (this.deck == null)
+                    {
+                        // Create a new GameObject for the deck
+                        var deckObj = new GameObject("Deck");
+                        deckObj.transform.SetParent(transform);
+                        this.deck = deckObj.AddComponent<Deck>();
+                    }
+                }
 
-            // Set initial state
-            CurrentState = GameState.WaitingToStart;
-            OnGameStateChanged?.Invoke(CurrentState);
+                // Only initialize if the deck hasn't been initialized yet
+                if (this.deck.RemainingCards == 0)
+                {
+                    this.deck.Initialize();
+                }
+
+                Debug.Log("GameManager initialized with dependencies");
+
+                // Set initial state
+                CurrentState = GameState.WaitingToStart;
+                RaiseGameStateChanged(CurrentState);
+            }
+            catch (Exception ex)
+            {
+                ErrorHandler.HandleException(ex, "GameManager initialization failed");
+                throw;
+            }
+        }
+
+        public void UpdateGameState(GameState newState)
+        {
+            Debug.Log($"GameManager: State changed to {newState}");
+            // Existing logic...
         }
     }
 }

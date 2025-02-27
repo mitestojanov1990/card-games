@@ -2,11 +2,8 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
 using CardGame.Core;
-using CardGame.Core.Interfaces;
 using CardGame.Players;
-using CardGame.Players.Interfaces;
 using CardGame.Rules;
-using CardGame.Rules.Interfaces;
 using CardGame.Utils;
 using CardGame.DI;
 
@@ -83,7 +80,7 @@ namespace CardGame.Stats
         private GameStats currentGameStats;
         private int currentSequentialChain = 0;
 
-        private readonly ICardRules cardRules;
+        private ICardRules cardRules;
 
         private void Awake()
         {

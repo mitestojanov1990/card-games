@@ -5,9 +5,6 @@ using System.Linq;
 using System.Collections;
 using CardGame.Core;
 using CardGame.Players;
-using CardGame.Core.Interfaces;
-using CardGame.Rules.Interfaces;
-using CardGame.Players.Interfaces;
 
 namespace CardGame.UI
 {
@@ -29,6 +26,7 @@ namespace CardGame.UI
         private RectTransform discardArea;
         private const float REFERENCE_CHECK_INTERVAL = 1f;
         private bool referencesValid = false;
+        private IGameManager gameManager;
 
         // Add events
         public System.Action<string> OnReferenceError;
@@ -80,6 +78,15 @@ namespace CardGame.UI
             GameObject obj = new GameObject("CPUHandVisualizer");
             obj.transform.SetParent(parent, false);
             return obj.AddComponent<CPUHandVisualizer>();
+        }
+
+        private void Awake()
+        {
+            gameManager = GameManager.Instance as IGameManager;
+            if (gameManager == null)
+            {
+                Debug.LogError("Could not access IGameManager interface");
+            }
         }
 
         public void Initialize()
@@ -505,7 +512,9 @@ namespace CardGame.UI
 
         public Vector2 GetHandPosition(int playerIndex)
         {
-            float angle = (playerIndex * 90f) / GameManager.Instance.PlayerCount;
+            if (gameManager == null) return Vector2.zero;
+
+            float angle = (playerIndex * 90f) / gameManager.PlayerCount;
             float radius = handSpacing * 2f;
             
             float x = Mathf.Cos(angle * Mathf.Deg2Rad) * radius;
@@ -516,7 +525,9 @@ namespace CardGame.UI
 
         public Quaternion GetHandRotation(int playerIndex)
         {
-            float angle = (playerIndex * 90f) / GameManager.Instance.PlayerCount;
+            if (gameManager == null) return Quaternion.identity;
+
+            float angle = (playerIndex * 90f) / gameManager.PlayerCount;
             return Quaternion.Euler(0, 0, -angle);
         }
 
@@ -634,7 +645,7 @@ namespace CardGame.UI
 
         private int GetPlayerIndex(IPlayer player)
         {
-            return GameManager.Instance.GetPlayerIndex(player);
+            return GameManager.Instance.GetPlayerIndex((Player)player);
         }
 
         private IEnumerator RetryInitialization(int attemptCount = 0)
